@@ -4,7 +4,6 @@
  */
 
 import { ethers } from 'ethers';
-import ProofOfArtArtifact from '../artifacts/contracts/ProofOfArt.sol/ProofOfArt.json';
 import { ProofOfArtABI } from './contract-abi';
 
 /**
@@ -26,7 +25,8 @@ const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'http://localhost:8545';
  */
 export function getContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   const contractAddress = getContractAddress();
-  const abi = (ProofOfArtArtifact as any).abi || ProofOfArtABI;
+  // Use ABI from contract-abi.ts (artifacts folder is not committed to repo)
+  const abi = ProofOfArtABI;
   return new ethers.Contract(contractAddress, abi, signerOrProvider);
 }
 
