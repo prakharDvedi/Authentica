@@ -1,0 +1,342 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useAccount, useWalletClient, useChainId, useSwitchNetwork } from 'wagmi';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { registerProofOnChain } from '@/lib/blockchain';
+import { BrowserProvider } from 'ethers';
+import Link from 'next/link';
+import { QRCodeSVG } from 'qrcode.react';
+
+export default function CreatePage() {
+  const { address, isConnected } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const chainId = useChainId();
+  const { switchNetwork } = useSwitchNetwork();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  const [prompt, setPrompt] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [proof, setProof] = useState<any>(null);
+  const [certificate, setCertificate] = useState<any>(null);
+
+  const handleGenerate = async () => {
+    if (!prompt.trim() || !isConnected || !address) {
+      alert('Please connect your wallet and enter a prompt');
+      return;
+    }
+
+    setLoading(true);
+    setGeneratedImage(null);
+    setProof(null);
+    setCertificate(null);
+
+    try {
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          userAddress: address,
+          type: 'image',
+        }),
+      });
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`API returned non-JSON response: ${text.substring(0, 200)}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Generation failed');
+      }
+
+      setGeneratedImage(`data:image/png;base64,${data.proof.outputBuffer}`);
+      setProof(data.proof);
+
+      let txHash: string | null = null;
+      if (walletClient) {
+        try {
+          if (chainId !== 11155111) {
+            if (switchNetwork) {
+              try {
+                console.log('Attempting to switch to Sepolia network...');
+                switchNetwork(11155111);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                if (chainId !== 11155111) {
+                  throw new Error('Network switch failed. Please switch to Sepolia testnet manually in MetaMask.');
+                }
+              } catch (switchError: any) {
+                throw new Error(`Failed to switch to Sepolia network. Please switch manually in MetaMask:\n\n1. Open MetaMask\n2. Click network dropdown\n3. Select "Sepolia"\n4. Try again`);
+              }
+            } else {
+              throw new Error(`Wrong network! Please switch to Sepolia testnet (Chain ID: 11155111). Current network Chain ID: ${chainId}. Open MetaMask and switch to Sepolia testnet.`);
+            }
+          }
+          
+          const provider = new BrowserProvider(walletClient as any);
+          const signer = await provider.getSigner(address);
+          
+          const network = await provider.getNetwork();
+          console.log('Connected to network:', network.name, 'Chain ID:', network.chainId.toString());
+          
+          if (network.chainId !== 11155111n) {
+            throw new Error(`Network mismatch! Wallet is on Chain ID ${network.chainId}, but contract is on Sepolia (11155111). Please switch to Sepolia testnet in MetaMask and try again.`);
+          }
+          
+          txHash = await registerProofOnChain(signer, {
+            promptHash: data.proof.promptHash,
+            outputHash: data.proof.outputHash,
+            combinedHash: data.proof.combinedHash,
+            ipfsLink: data.proof.outputCid,
+          });
+        } catch (error: any) {
+          console.error('Blockchain registration error:', error);
+          console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            data: error.data,
+            chainId,
+            contractAddress: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || 'not set',
+            rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'not set',
+          });
+          
+          if (error.message?.includes('network') || error.message?.includes('Chain ID') || error.code === 'NETWORK_ERROR') {
+            alert(error.message || 'Please switch to Sepolia testnet in MetaMask:\n1. Open MetaMask\n2. Click network dropdown\n3. Select "Sepolia"\n4. Try again');
+          }
+          
+          console.warn('Blockchain registration failed, continuing without it:', error.message);
+        }
+      }
+
+      const cert = {
+        creator: address,
+        prompt,
+        promptHash: data.proof.promptHash,
+        outputHash: data.proof.outputHash,
+        combinedHash: data.proof.combinedHash,
+        timestamp: new Date(data.proof.timestamp).toISOString(),
+        ipfsLink: data.proof.outputCid,
+        metadataCid: data.proof.metadataCid,
+        txHash: txHash || 'not-registered',
+        verificationUrl: `${window.location.origin}/verify?hash=${data.proof.combinedHash}`,
+      };
+
+      setCertificate(cert);
+    } catch (error: any) {
+      console.error('Generation error:', error);
+      alert('Failed to generate: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-cream-50 to-green-50">
+      <nav className="border-b border-green-200/50 bg-cream-100/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <Link
+              href="/"
+              className="text-2xl font-bold bg-gradient-to-r from-green-600 to-green-700 bg-clip-text text-transparent"
+            >
+              Authentica
+            </Link>
+            <ConnectButton />
+          </div>
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-4xl font-bold text-center mb-8 text-stone-800">
+            Create Verifiable AI Art
+          </h1>
+
+          {!mounted ? (
+            <div className="bg-cream-100/80 rounded-xl shadow-lg p-8 text-center border border-green-200/50 backdrop-blur-sm">
+              <p className="text-lg text-stone-700">Loading...</p>
+            </div>
+          ) : !isConnected ? (
+            <div className="bg-cream-100/80 rounded-xl shadow-lg p-8 text-center border border-green-200/50 backdrop-blur-sm">
+              <p className="text-lg text-stone-700 mb-4">
+                Connect your wallet to get started
+              </p>
+              <ConnectButton />
+            </div>
+          ) : (
+            <>
+              <div className="bg-cream-100/80 rounded-xl shadow-lg p-6 mb-6 border border-green-200/50 backdrop-blur-sm">
+                <label className="block text-sm font-medium text-stone-800 mb-2">
+                  Enter your prompt
+                </label>
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="A futuristic cityscape at sunset with flying cars..."
+                  className="w-full px-4 py-3 bg-white/80 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-stone-800 placeholder-stone-500"
+                  rows={4}
+                />
+                <button
+                  onClick={handleGenerate}
+                  disabled={loading || !prompt.trim()}
+                  className="mt-4 w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:bg-stone-300 disabled:text-stone-500 disabled:cursor-not-allowed transition-colors"
+                >
+                  {loading ? 'Generating...' : 'Generate & Create Proof'}
+                </button>
+              </div>
+
+              {generatedImage && (
+                <div className="bg-cream-100/80 rounded-xl shadow-lg p-6 mb-6 border border-green-200/50 backdrop-blur-sm">
+                  <h2 className="text-2xl font-bold mb-4 text-stone-800">Generated Artwork</h2>
+                  <img
+                    src={generatedImage}
+                    alt="Generated artwork"
+                    className="w-full rounded-lg mb-4"
+                  />
+                  {proof && (
+                    <div className="bg-white/80 p-4 rounded-lg border border-green-200/50">
+                      <p className="text-sm text-stone-700">
+                        <strong className="text-stone-800">Combined Hash:</strong>{' '}
+                        <code className="text-xs text-green-700 font-mono">{proof.combinedHash}</code>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {certificate && (
+                <div className="bg-gradient-to-br from-cream-100/90 to-green-50/90 rounded-xl shadow-lg p-8 border-2 border-green-300/50 backdrop-blur-sm">
+                  <h2 className="text-3xl font-bold text-center mb-6 text-stone-800">
+                    🎨 Authentica Certificate
+                  </h2>
+
+                  <div className="grid md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                      <h3 className="font-semibold text-stone-800 mb-2">
+                        Creator
+                      </h3>
+                      <p className="text-sm font-mono bg-white/80 p-2 rounded text-stone-700 border border-green-200/50">
+                        {certificate.creator}
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="font-semibold text-stone-800 mb-2">
+                        Timestamp
+                      </h3>
+                      <p className="text-sm bg-white/80 p-2 rounded text-stone-700 border border-green-200/50">
+                        {new Date(certificate.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <h3 className="font-semibold text-stone-800 mb-2">
+                        Prompt
+                      </h3>
+                      <p className="text-sm bg-white/80 p-2 rounded text-stone-700 border border-green-200/50">
+                        {certificate.prompt}
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="font-semibold text-stone-800 mb-2">
+                        Combined Hash
+                      </h3>
+                      <p className="text-xs font-mono bg-white/80 p-2 rounded break-all text-green-700 border border-green-200/50">
+                        {certificate.combinedHash}
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="font-semibold text-stone-800 mb-2">
+                        Transaction Hash
+                      </h3>
+                      <p className="text-xs font-mono bg-white/80 p-2 rounded break-all text-green-600 border border-green-200/50">
+                        {certificate.txHash}
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="font-semibold text-stone-800 mb-2">
+                        IPFS Link
+                      </h3>
+                      <a
+                        href={`https://gateway.pinata.cloud/ipfs/${certificate.ipfsLink}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-green-700 hover:text-green-800 hover:underline break-all"
+                      >
+                        ipfs://{certificate.ipfsLink}
+                      </a>
+                      <p className="text-xs text-stone-600 mt-1">
+                        (Using Pinata gateway - faster and more reliable)
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="font-semibold text-stone-800 mb-2">
+                        Verification URL
+                      </h3>
+                      <a
+                        href={certificate.verificationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-green-700 hover:text-green-800 hover:underline break-all"
+                      >
+                        {certificate.verificationUrl}
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-center">
+                    <div className="bg-white p-4 rounded-lg">
+                      <QRCodeSVG value={certificate.verificationUrl} size={200} />
+                    </div>
+                  </div>
+
+                  <div className="mt-6 text-center">
+                    <button
+                      onClick={() => {
+                        const printWindow = window.open('', '_blank');
+                        if (printWindow) {
+                          printWindow.document.write(`
+                            <html>
+                              <head><title>Authentica Certificate</title></head>
+                              <body>
+                                <h1>Authentica Certificate</h1>
+                                <p><strong>Creator:</strong> ${certificate.creator}</p>
+                                <p><strong>Timestamp:</strong> ${certificate.timestamp}</p>
+                                <p><strong>Prompt:</strong> ${certificate.prompt}</p>
+                                <p><strong>Hash:</strong> ${certificate.combinedHash}</p>
+                                <p><strong>Verify at:</strong> ${certificate.verificationUrl}</p>
+                              </body>
+                            </html>
+                          `);
+                          printWindow.document.close();
+                          printWindow.print();
+                        }
+                      }}
+                      className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors shadow-lg shadow-green-500/30"
+                    >
+                      Print Certificate
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
