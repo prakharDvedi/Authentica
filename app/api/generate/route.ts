@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { prompt, userAddress, type = 'image' } = body;
+    const { prompt, userAddress, type = 'image', faceHash, faceTimestamp } = body;
 
     if (!prompt || !userAddress) {
       return NextResponse.json(
@@ -110,6 +110,7 @@ export async function POST(request: NextRequest) {
       timestamp,
       ipfsLink: outputCid,
       type,
+      ...(faceHash && { faceHash, faceTimestamp }),
     };
 
     let metadataCid: string;
@@ -131,6 +132,7 @@ export async function POST(request: NextRequest) {
         outputCid,
         metadataCid,
         outputBuffer: outputBuffer.toString('base64'),
+        ...(faceHash && { faceHash, faceTimestamp }),
       },
     });
   } catch (error: any) {

@@ -7,6 +7,7 @@ import { registerProofOnChain } from '@/lib/blockchain';
 import { BrowserProvider } from 'ethers';
 import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
+import CameraCapture from '@/components/CameraCapture';
 
 export default function CreatePage() {
   const { address, isConnected } = useAccount();
@@ -23,6 +24,8 @@ export default function CreatePage() {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [proof, setProof] = useState<any>(null);
   const [certificate, setCertificate] = useState<any>(null);
+  const [faceHash, setFaceHash] = useState<string | null>(null);
+  const [faceTimestamp, setFaceTimestamp] = useState<number | null>(null);
 
   const handleGenerate = async () => {
     if (!prompt.trim() || !isConnected || !address) {
@@ -45,6 +48,8 @@ export default function CreatePage() {
           prompt,
           userAddress: address,
           type: 'image',
+          faceHash: faceHash || undefined,
+          faceTimestamp: faceTimestamp || undefined,
         }),
       });
 
@@ -129,6 +134,8 @@ export default function CreatePage() {
         metadataCid: data.proof.metadataCid,
         txHash: txHash || 'not-registered',
         verificationUrl: `${window.location.origin}/verify?hash=${data.proof.combinedHash}`,
+        faceHash: data.proof.faceHash || null,
+        faceVerified: !!data.proof.faceHash,
       };
 
       setCertificate(cert);
@@ -186,6 +193,20 @@ export default function CreatePage() {
                   className="w-full px-4 py-3 bg-white/80 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-stone-800 placeholder-stone-500"
                   rows={4}
                 />
+                
+                <div className="mt-4">
+                  <CameraCapture
+                    onCapture={(hash, timestamp) => {
+                      setFaceHash(hash);
+                      setFaceTimestamp(timestamp);
+                    }}
+                    onError={(error) => {
+                      console.error('Camera error:', error);
+                    }}
+                    disabled={loading}
+                  />
+                </div>
+
                 <button
                   onClick={handleGenerate}
                   disabled={loading || !prompt.trim()}
@@ -216,9 +237,17 @@ export default function CreatePage() {
 
               {certificate && (
                 <div className="bg-gradient-to-br from-cream-100/90 to-green-50/90 rounded-xl shadow-lg p-8 border-2 border-green-300/50 backdrop-blur-sm">
-                  <h2 className="text-3xl font-bold text-center mb-6 text-stone-800">
-                    🎨 Authentica Certificate
-                  </h2>
+                  <div className="flex items-center justify-center gap-3 mb-4">
+                    <h2 className="text-3xl font-bold text-center text-stone-800">
+                      🎨 Authentica Certificate
+                    </h2>
+                    {certificate.faceVerified && (
+                      <div className="flex items-center gap-2 bg-green-100 px-3 py-1 rounded-full border border-green-300">
+                        <span className="text-lg">✅</span>
+                        <span className="text-sm font-semibold text-green-800">Face Verified</span>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="grid md:grid-cols-2 gap-6 mb-6">
                     <div>
@@ -296,6 +325,20 @@ export default function CreatePage() {
                         {certificate.verificationUrl}
                       </a>
                     </div>
+
+                    {certificate.faceHash && (
+                      <div>
+                        <h3 className="font-semibold text-stone-800 mb-2">
+                          Face Verification Hash
+                        </h3>
+                        <p className="text-xs font-mono bg-white/80 p-2 rounded break-all text-green-700 border border-green-200/50">
+                          {certificate.faceHash}
+                        </p>
+                        <p className="text-xs text-stone-600 mt-1">
+                          Only the hash is stored, not your image
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex justify-center">
