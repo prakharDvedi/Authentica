@@ -14,6 +14,10 @@ function VerifyContent() {
   const [loading, setLoading] = useState(false);
   const [verificationResult, setVerificationResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [comparing, setComparing] = useState(false);
+  const [similarityResult, setSimilarityResult] = useState<any>(null);
 
   useEffect(() => {
     if (hashFromUrl) {
@@ -32,6 +36,7 @@ function VerifyContent() {
     setLoading(true);
     setError(null);
     setVerificationResult(null);
+    setSimilarityResult(null);
 
     try {
       const provider = getProvider();
@@ -47,6 +52,112 @@ function VerifyContent() {
       setError(error.message || 'Failed to verify proof');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadedImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      setSimilarityResult(null);
+    }
+  };
+
+  const handleCompareImages = async () => {
+    if (!uploadedImage || !verificationResult) {
+      setError('Please upload an image and verify a hash first');
+      return;
+    }
+
+    setComparing(true);
+    setError(null);
+    setSimilarityResult(null);
+
+    try {
+      // Try client-side comparison first (more accurate for edited images)
+      try {
+        const { compareImagesClient } = await import('@/lib/imageComparison');
+        const originalImageUrl = `https://gateway.pinata.cloud/ipfs/${verificationResult.ipfsLink}`;
+        const uploadedImageUrl = imagePreview || '';
+        
+        if (uploadedImageUrl) {
+          const clientResult = await compareImagesClient(originalImageUrl, uploadedImageUrl);
+          
+          // If client-side comparison gives good results, use it
+          if (clientResult.similarity > 0.3) {
+            // Determine verdict
+            let verdict = 'different';
+            if (clientResult.similarity >= 0.90) {
+              verdict = 'authentic';
+            } else if (clientResult.similarity >= 0.70) {
+              verdict = 'minor_edits';
+            } else if (clientResult.similarity >= 0.50) {
+              verdict = 'modified';
+            }
+            
+            const percentage = (clientResult.similarity * 100).toFixed(1);
+            let message = '';
+            switch (verdict) {
+              case 'authentic':
+                message = `Authentic - Original artwork (${percentage}% match)`;
+                break;
+              case 'minor_edits':
+                message = `Minor edits detected - Cropped, filtered, or color adjusted (${percentage}% match)`;
+                break;
+              case 'modified':
+                message = `Modified - Significant changes detected (${percentage}% match)`;
+                break;
+              default:
+                message = `Different artwork - Not the same image (${percentage}% match)`;
+            }
+            
+            setSimilarityResult({
+              success: true,
+              similarity: parseFloat(percentage),
+              verdict,
+              method: 'canvas',
+              message,
+            });
+            setComparing(false);
+            return;
+          }
+        }
+      } catch (clientError) {
+        console.log('Client-side comparison failed, using server-side:', clientError);
+      }
+
+      // Fallback to server-side comparison
+      const formData = new FormData();
+      formData.append('image', uploadedImage);
+      formData.append('originalImageUrl', `https://gateway.pinata.cloud/ipfs/${verificationResult.ipfsLink}`);
+      
+      // If we have embedding hash in metadata, include it
+      if (verificationResult.clipEmbeddingHash) {
+        formData.append('originalEmbeddingHash', verificationResult.clipEmbeddingHash);
+      }
+
+      const response = await fetch('/api/compare', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to compare images');
+      }
+
+      setSimilarityResult(data);
+    } catch (error: any) {
+      console.error('Comparison error:', error);
+      setError(error.message || 'Failed to compare images');
+    } finally {
+      setComparing(false);
     }
   };
 
@@ -77,6 +188,7 @@ function VerifyContent() {
         </h1>
 
         <div className="bg-cream-100/80 rounded-xl shadow-lg p-8 mb-6 border border-green-200/50 backdrop-blur-sm">
+          <h2 className="text-xl font-bold mb-4 text-stone-800">🔍 Verify by Hash</h2>
           <label className="block text-sm font-medium text-stone-800 mb-2">
             Enter Combined Hash or Proof Hash
           </label>
@@ -102,6 +214,60 @@ function VerifyContent() {
             authenticity
           </p>
         </div>
+
+        {verificationResult && (
+          <div className="bg-cream-100/80 rounded-xl shadow-lg p-8 mb-6 border border-green-200/50 backdrop-blur-sm">
+            <h2 className="text-xl font-bold mb-4 text-stone-800">🖼️ Tamper Detection</h2>
+            <p className="text-sm text-stone-600 mb-4">
+              Upload an image to check if it matches the original artwork or has been modified
+            </p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-stone-800 mb-2">
+                  Upload Image to Compare
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="block w-full text-sm text-stone-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700"
+                />
+              </div>
+
+              {imagePreview && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-stone-800 mb-2">Original (from IPFS)</h3>
+                    <img
+                      src={`https://gateway.pinata.cloud/ipfs/${verificationResult.ipfsLink}`}
+                      alt="Original artwork"
+                      className="w-full rounded-lg border-2 border-green-300"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-stone-800 mb-2">Uploaded Image</h3>
+                    <img
+                      src={imagePreview}
+                      alt="Uploaded image"
+                      className="w-full rounded-lg border-2 border-blue-300"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {uploadedImage && (
+                <button
+                  onClick={handleCompareImages}
+                  disabled={comparing || !verificationResult}
+                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-stone-300 disabled:text-stone-500 disabled:cursor-not-allowed transition-colors shadow-lg shadow-blue-500/30"
+                >
+                  {comparing ? '🔄 Comparing Images...' : '🔍 Compare Images'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-100/80 border border-red-300/50 rounded-xl p-6 mb-6 backdrop-blur-sm">
@@ -173,6 +339,101 @@ function VerifyContent() {
                   blockchain and cannot be altered or forged. The artwork file is
                   stored on IPFS for decentralized access.
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {similarityResult && (
+          <div className="bg-gradient-to-br from-blue-50/90 to-purple-50/90 rounded-xl shadow-lg p-8 border-2 border-blue-300/50 backdrop-blur-sm">
+            <h2 className="text-3xl font-bold text-center mb-6 text-stone-800">
+              🎯 Tamper Detection Result
+            </h2>
+
+            <div className="text-center mb-6">
+              <div className="inline-block">
+                <div className="text-6xl font-bold mb-2" style={{
+                  color: similarityResult.similarity >= 95 
+                    ? '#10b981' 
+                    : similarityResult.similarity >= 85 
+                    ? '#f59e0b' 
+                    : similarityResult.similarity >= 60 
+                    ? '#ef4444' 
+                    : '#6b7280'
+                }}>
+                  {similarityResult.similarity.toFixed(1)}%
+                </div>
+                <div className="w-64 h-4 bg-stone-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${similarityResult.similarity}%`,
+                      backgroundColor: similarityResult.similarity >= 95 
+                        ? '#10b981' 
+                        : similarityResult.similarity >= 85 
+                        ? '#f59e0b' 
+                        : similarityResult.similarity >= 60 
+                        ? '#ef4444' 
+                        : '#6b7280'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/80 rounded-lg p-6 space-y-4 border border-blue-200/50">
+              <div className="text-center">
+                <h3 className="text-2xl font-bold mb-2" style={{
+                  color: similarityResult.verdict === 'authentic' 
+                    ? '#10b981' 
+                    : similarityResult.verdict === 'minor_edits' 
+                    ? '#f59e0b' 
+                    : similarityResult.verdict === 'modified' 
+                    ? '#ef4444' 
+                    : '#6b7280'
+                }}>
+                  {similarityResult.verdict === 'authentic' && '✅ Authentic'}
+                  {similarityResult.verdict === 'minor_edits' && '⚠️ Minor Edits'}
+                  {similarityResult.verdict === 'modified' && '🔴 Modified'}
+                  {similarityResult.verdict === 'different' && '❌ Different Artwork'}
+                </h3>
+                <p className="text-stone-700">{similarityResult.message}</p>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4 mt-6">
+                <div>
+                  <h4 className="font-semibold text-stone-800 mb-2">Similarity Score</h4>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {similarityResult.similarity.toFixed(2)}%
+                  </p>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-stone-800 mb-2">Detection Method</h4>
+                  <p className="text-sm text-stone-700">
+                    {similarityResult.method === 'clip' 
+                      ? '🎯 CLIP Embeddings' 
+                      : similarityResult.method === 'canvas'
+                      ? '🎨 Canvas Pixel Analysis'
+                      : '🔍 Hash Comparison'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-blue-50/80 p-4 rounded-lg border border-blue-200/50 mt-4">
+                <p className="text-sm text-blue-800">
+                  <strong className="text-blue-900">How it works:</strong> {similarityResult.method === 'clip' 
+                    ? 'Using AI vision embeddings (CLIP) to detect visual similarity even if the image was cropped, filtered, or color-adjusted.'
+                    : similarityResult.method === 'canvas'
+                    ? 'Using canvas-based pixel analysis to compare actual image content. This method detects visual similarity even with minor edits like brush strokes or filters.'
+                    : similarityResult.method === 'simple'
+                    ? 'Using basic image comparison (file size, byte comparison). For better accuracy with edited images, enable the Python CLIP service.'
+                    : 'Using hash comparison. For better accuracy, enable the Python CLIP service.'}
+                </p>
+                {similarityResult.warning && (
+                  <p className="text-sm text-yellow-800 mt-2 bg-yellow-50 p-2 rounded">
+                    ⚠️ {similarityResult.warning}
+                  </p>
+                )}
               </div>
             </div>
           </div>

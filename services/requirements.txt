@@ -1,0 +1,11 @@
+flask==3.0.0
+flask-cors==4.0.0
+sentence-transformers==2.2.2
+pillow==10.1.0
+requests==2.31.0
+numpy==1.24.3
+torch==2.0.1
+transformers==4.40.0
+huggingface-hub==0.23.0
+accelerate>=1.0.0
+
