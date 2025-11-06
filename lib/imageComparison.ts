@@ -1,5 +1,9 @@
-// Client-side image comparison utilities
-// This provides better visual similarity detection than server-side byte comparison
+/**
+ * Client-Side Image Comparison Library
+ * Provides visual similarity detection using canvas pixel analysis
+ * More accurate than byte comparison for edited images (crop, filter, color adjustments)
+ * Used as fallback when Python CLIP service is not available
+ */
 
 export interface ImageComparisonResult {
   similarity: number;

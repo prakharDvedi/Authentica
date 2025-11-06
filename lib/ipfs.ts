@@ -1,16 +1,32 @@
+/**
+ * IPFS Storage Library
+ * Handles uploading images and metadata to IPFS (InterPlanetary File System)
+ * Supports both Pinata and standard IPFS clients
+ */
+
 let ipfsClient: any = null;
 let ipfsModule: any = null;
 
+/**
+ * Check if using Pinata service
+ * Pinata provides a managed IPFS service with better reliability
+ */
 function isPinata(): boolean {
   const apiUrl = process.env.IPFS_API_URL || '';
   return apiUrl.includes('pinata.cloud');
 }
 
+/**
+ * Get IPFS client instance
+ * Initializes IPFS client if not already created
+ * Returns 'pinata' string if using Pinata, otherwise returns client instance
+ */
 async function getIpfsClient() {
   if (isPinata()) {
     return 'pinata';
   }
 
+  // Initialize IPFS client if not already created
   if (!ipfsClient) {
     try {
       if (!ipfsModule) {
@@ -40,6 +56,10 @@ async function getIpfsClient() {
   return ipfsClient;
 }
 
+/**
+ * Upload file to Pinata IPFS
+ * Uses Pinata's API for reliable IPFS storage
+ */
 async function uploadToPinata(file: Buffer, filename?: string): Promise<string> {
   const axios = (await import('axios')).default;
   const ipfsAuth = process.env.IPFS_AUTH;
@@ -90,10 +110,16 @@ async function uploadToPinata(file: Buffer, filename?: string): Promise<string> 
   }
 }
 
+/**
+ * Upload file to IPFS
+ * Main function for uploading images to decentralized storage
+ * Returns IPFS CID (Content Identifier)
+ */
 export async function uploadToIpfs(file: Buffer, filename?: string): Promise<string> {
   try {
     const client = await getIpfsClient();
     
+    // Use Pinata if configured
     if (client === 'pinata') {
       return await uploadToPinata(file, filename);
     }
@@ -102,11 +128,13 @@ export async function uploadToIpfs(file: Buffer, filename?: string): Promise<str
       throw new Error('IPFS client not available');
     }
     
+    // Upload to standard IPFS client
     const result = await client.add({
       path: filename || `proof-${Date.now()}`,
       content: file,
     });
     
+    // Return CID (Content Identifier) - unique hash for the file
     return result.cid.toString();
   } catch (error: any) {
     console.error('IPFS upload error:', error);
@@ -114,6 +142,10 @@ export async function uploadToIpfs(file: Buffer, filename?: string): Promise<str
   }
 }
 
+/**
+ * Upload metadata JSON to Pinata IPFS
+ * Stores artwork metadata (prompt, hashes, transparency data, etc.)
+ */
 async function uploadMetadataToPinata(metadata: object): Promise<string> {
   const axios = (await import('axios')).default;
   const ipfsAuth = process.env.IPFS_AUTH;
@@ -153,10 +185,16 @@ async function uploadMetadataToPinata(metadata: object): Promise<string> {
   }
 }
 
+/**
+ * Upload metadata to IPFS
+ * Stores JSON metadata containing proof data, transparency info, etc.
+ * Returns IPFS CID for the metadata
+ */
 export async function uploadMetadataToIpfs(metadata: object): Promise<string> {
   try {
     const client = await getIpfsClient();
     
+    // Use Pinata if configured
     if (client === 'pinata') {
       return await uploadMetadataToPinata(metadata);
     }
@@ -165,6 +203,7 @@ export async function uploadMetadataToIpfs(metadata: object): Promise<string> {
       throw new Error('IPFS client not available');
     }
     
+    // Convert metadata to JSON and upload
     const metadataString = JSON.stringify(metadata, null, 2);
     const result = await client.add({
       path: `metadata-${Date.now()}.json`,
@@ -178,6 +217,11 @@ export async function uploadMetadataToIpfs(metadata: object): Promise<string> {
   }
 }
 
+/**
+ * Get IPFS URL for a CID
+ * Returns a gateway URL to access IPFS content
+ * Uses Pinata gateway if configured, otherwise uses public gateway
+ */
 export function getIpfsUrl(cid: string): string {
   if (isPinata()) {
     return `https://gateway.pinata.cloud/ipfs/${cid}`;

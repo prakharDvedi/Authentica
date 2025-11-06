@@ -1,3 +1,10 @@
+/**
+ * Camera Capture Component
+ * Captures webcam photo with timestamp overlay and creates hash
+ * Includes basic face detection to ensure a person is present
+ * Only stores hash, not the actual image (privacy-first)
+ */
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';

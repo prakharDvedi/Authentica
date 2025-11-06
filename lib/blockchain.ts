@@ -1,7 +1,16 @@
+/**
+ * Blockchain Interaction Library
+ * Handles smart contract interactions for registering and verifying proofs
+ */
+
 import { ethers } from 'ethers';
 import ProofOfArtArtifact from '../artifacts/contracts/ProofOfArt.sol/ProofOfArt.json';
 import { ProofOfArtABI } from './contract-abi';
 
+/**
+ * Get contract address from environment variables
+ * Works in both browser and Node.js contexts
+ */
 function getContractAddress(): string {
   if (typeof window !== 'undefined') {
     return (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as string) || '';
@@ -11,12 +20,21 @@ function getContractAddress(): string {
 
 const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'http://localhost:8545';
 
+/**
+ * Get contract instance
+ * Returns an ethers Contract instance for interacting with ProofOfArt smart contract
+ */
 export function getContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   const contractAddress = getContractAddress();
   const abi = (ProofOfArtArtifact as any).abi || ProofOfArtABI;
   return new ethers.Contract(contractAddress, abi, signerOrProvider);
 }
 
+/**
+ * Register proof on blockchain
+ * Stores proof data permanently on-chain for verification
+ * Returns transaction hash
+ */
 export async function registerProofOnChain(
   signer: ethers.Signer,
   proofData: {
@@ -35,11 +53,13 @@ export async function registerProofOnChain(
 
     const contract = getContract(signer);
     
+    // Verify contract exists at address
     const code = await signer.provider.getCode(contractAddress);
     if (code === '0x') {
       throw new Error(`No contract found at address ${contractAddress}. Please deploy the contract first.`);
     }
 
+    // Call smart contract to register proof
     const tx = await contract.registerProof(
       proofData.promptHash,
       proofData.outputHash,
@@ -47,6 +67,7 @@ export async function registerProofOnChain(
       proofData.ipfsLink
     );
 
+    // Wait for transaction confirmation
     const receipt = await tx.wait();
     return receipt.hash;
   } catch (error: any) {
@@ -72,6 +93,11 @@ export async function registerProofOnChain(
   }
 }
 
+/**
+ * Verify proof on blockchain
+ * Checks if a proof exists and returns its data
+ * Used to verify authenticity of artwork
+ */
 export async function verifyProofOnChain(
   provider: ethers.Provider,
   combinedHash: string
@@ -83,6 +109,7 @@ export async function verifyProofOnChain(
 }> {
   try {
     const contract = getContract(provider);
+    // Call smart contract to verify proof
     const result = await contract.verifyProof(combinedHash);
     
     return {
@@ -97,6 +124,10 @@ export async function verifyProofOnChain(
   }
 }
 
+/**
+ * Get blockchain provider
+ * Returns JSON-RPC provider for connecting to Ethereum network
+ */
 export function getProvider(): ethers.JsonRpcProvider {
   return new ethers.JsonRpcProvider(RPC_URL);
 }

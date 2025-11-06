@@ -1,3 +1,9 @@
+/**
+ * API Route: Generate AI Artwork
+ * Handles AI image generation, proof creation, and IPFS storage
+ * Returns proof data including transparency metadata
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { generateImage } from '@/lib/ai';
 import { generateProof, hashBuffer } from '@/lib/crypto';
@@ -7,8 +13,13 @@ let uploadMetadataToIpfs: any;
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/**
+ * POST /api/generate
+ * Generates AI artwork, creates cryptographic proof, and stores on IPFS
+ */
 export async function POST(request: NextRequest) {
   try {
+    // Lazy load IPFS functions (only if needed)
     if (!uploadToIpfs || !uploadMetadataToIpfs) {
       try {
         const ipfsModule = await import('@/lib/ipfs');
@@ -68,9 +79,13 @@ export async function POST(request: NextRequest) {
     }
 
     let outputBuffer: Buffer;
+    let transparencyData: any = null;
+    
     if (type === 'image') {
       try {
-        outputBuffer = await generateImage(prompt);
+        const result = await generateImage(prompt);
+        outputBuffer = result.image;
+        transparencyData = result.transparency;
       } catch (error: any) {
         console.error('Image generation error:', error);
         return NextResponse.json(
@@ -111,6 +126,7 @@ export async function POST(request: NextRequest) {
       ipfsLink: outputCid,
       type,
       ...(faceHash && { faceHash, faceTimestamp }),
+      ...(transparencyData && { transparency: transparencyData }),
     };
 
     let metadataCid: string;
@@ -133,6 +149,7 @@ export async function POST(request: NextRequest) {
         metadataCid,
         outputBuffer: outputBuffer.toString('base64'),
         ...(faceHash && { faceHash, faceTimestamp }),
+        ...(transparencyData && { transparency: transparencyData }),
       },
     });
   } catch (error: any) {

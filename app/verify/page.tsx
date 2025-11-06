@@ -1,3 +1,14 @@
+/**
+ * Verify Page Component
+ * Main page for verifying artwork authenticity
+ * Features:
+ * - Blockchain proof verification
+ * - IPFS image retrieval
+ * - Tamper detection (image comparison)
+ * - Transparency data display
+ * - Side-by-side image comparison
+ */
+
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
@@ -5,6 +16,7 @@ import { useSearchParams } from 'next/navigation';
 import { verifyProofOnChain, getProvider } from '@/lib/blockchain';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+import TransparencyCard from '@/components/TransparencyCard';
 
 function VerifyContent() {
   const searchParams = useSearchParams();
@@ -18,6 +30,8 @@ function VerifyContent() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [comparing, setComparing] = useState(false);
   const [similarityResult, setSimilarityResult] = useState<any>(null);
+  const [metadata, setMetadata] = useState<any>(null);
+  const [loadingMetadata, setLoadingMetadata] = useState(false);
 
   useEffect(() => {
     if (hashFromUrl) {
@@ -44,6 +58,8 @@ function VerifyContent() {
 
       if (result.exists) {
         setVerificationResult(result);
+        // Try to fetch metadata from IPFS using the hash
+        await fetchMetadataFromIpfs(hashValue);
       } else {
         setError('Proof not found on blockchain. This artwork may not be registered.');
       }
@@ -158,6 +174,24 @@ function VerifyContent() {
       setError(error.message || 'Failed to compare images');
     } finally {
       setComparing(false);
+    }
+  };
+
+  const fetchMetadataFromIpfs = async (hashValue: string) => {
+    setLoadingMetadata(true);
+    try {
+      // Fetch metadata using the API endpoint
+      const response = await fetch(`/api/metadata?hash=${encodeURIComponent(hashValue)}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.metadata) {
+          setMetadata(data.metadata);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch metadata:', error);
+    } finally {
+      setLoadingMetadata(false);
     }
   };
 
@@ -341,6 +375,15 @@ function VerifyContent() {
                 </p>
               </div>
             </div>
+
+            {metadata?.transparency && (
+              <div className="mt-6">
+                <TransparencyCard 
+                  transparency={metadata.transparency} 
+                  prompt={metadata.prompt || 'N/A'}
+                />
+              </div>
+            )}
           </div>
         )}
 

@@ -1,3 +1,15 @@
+/**
+ * Create Page Component
+ * Main page for generating AI artwork and creating proofs
+ * Features:
+ * - AI image generation (OpenAI DALL-E 3 or Stability AI)
+ * - Face verification capture
+ * - Cryptographic proof creation
+ * - Blockchain registration
+ * - IPFS storage
+ * - Transparency card display
+ */
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,6 +20,8 @@ import { BrowserProvider } from 'ethers';
 import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
 import CameraCapture from '@/components/CameraCapture';
+import TransparencyCard from '@/components/TransparencyCard';
+import { generatePDFCertificate } from '@/lib/certificate';
 
 export default function CreatePage() {
   const { address, isConnected } = useAccount();
@@ -26,6 +40,7 @@ export default function CreatePage() {
   const [certificate, setCertificate] = useState<any>(null);
   const [faceHash, setFaceHash] = useState<string | null>(null);
   const [faceTimestamp, setFaceTimestamp] = useState<number | null>(null);
+  const [transparencyData, setTransparencyData] = useState<any>(null);
 
   const handleGenerate = async () => {
     if (!prompt.trim() || !isConnected || !address) {
@@ -67,6 +82,7 @@ export default function CreatePage() {
 
       setGeneratedImage(`data:image/png;base64,${data.proof.outputBuffer}`);
       setProof(data.proof);
+      setTransparencyData(data.proof.transparency || null);
 
       let txHash: string | null = null;
       if (walletClient) {
@@ -136,6 +152,7 @@ export default function CreatePage() {
         verificationUrl: `${window.location.origin}/verify?hash=${data.proof.combinedHash}`,
         faceHash: data.proof.faceHash || null,
         faceVerified: !!data.proof.faceHash,
+        transparency: data.proof.transparency || null,
       };
 
       setCertificate(cert);
@@ -217,21 +234,36 @@ export default function CreatePage() {
               </div>
 
               {generatedImage && (
-                <div className="bg-cream-100/80 rounded-xl shadow-lg p-6 mb-6 border border-green-200/50 backdrop-blur-sm">
-                  <h2 className="text-2xl font-bold mb-4 text-stone-800">Generated Artwork</h2>
-                  <img
-                    src={generatedImage}
-                    alt="Generated artwork"
-                    className="w-full rounded-lg mb-4"
-                  />
-                  {proof && (
-                    <div className="bg-white/80 p-4 rounded-lg border border-green-200/50">
-                      <p className="text-sm text-stone-700">
-                        <strong className="text-stone-800">Combined Hash:</strong>{' '}
-                        <code className="text-xs text-green-700 font-mono">{proof.combinedHash}</code>
-                      </p>
+                <div className="space-y-6 mb-6">
+                  <div className="bg-cream-100/80 rounded-xl shadow-lg p-6 border border-green-200/50 backdrop-blur-sm">
+                    <h2 className="text-2xl font-bold mb-4 text-stone-800">Generated Artwork</h2>
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div>
+                        <img
+                          src={generatedImage}
+                          alt="Generated artwork"
+                          className="w-full rounded-lg mb-4"
+                        />
+                        {proof && (
+                          <div className="bg-white/80 p-4 rounded-lg border border-green-200/50">
+                            <p className="text-sm text-stone-700">
+                              <strong className="text-stone-800">Combined Hash:</strong>{' '}
+                              <code className="text-xs text-green-700 font-mono">{proof.combinedHash}</code>
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {transparencyData && (
+                        <div>
+                          <TransparencyCard 
+                            transparency={transparencyData} 
+                            prompt={prompt}
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -349,29 +381,12 @@ export default function CreatePage() {
 
                   <div className="mt-6 text-center">
                     <button
-                      onClick={() => {
-                        const printWindow = window.open('', '_blank');
-                        if (printWindow) {
-                          printWindow.document.write(`
-                            <html>
-                              <head><title>Authentica Certificate</title></head>
-                              <body>
-                                <h1>Authentica Certificate</h1>
-                                <p><strong>Creator:</strong> ${certificate.creator}</p>
-                                <p><strong>Timestamp:</strong> ${certificate.timestamp}</p>
-                                <p><strong>Prompt:</strong> ${certificate.prompt}</p>
-                                <p><strong>Hash:</strong> ${certificate.combinedHash}</p>
-                                <p><strong>Verify at:</strong> ${certificate.verificationUrl}</p>
-                              </body>
-                            </html>
-                          `);
-                          printWindow.document.close();
-                          printWindow.print();
-                        }
+                      onClick={async () => {
+                        await generatePDFCertificate(certificate);
                       }}
-                      className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors shadow-lg shadow-green-500/30"
+                      className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors shadow-lg shadow-green-500/30 font-semibold"
                     >
-                      Print Certificate
+                      📄 Download PDF Certificate
                     </button>
                   </div>
                 </div>

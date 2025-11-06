@@ -1,3 +1,9 @@
+/**
+ * API Route: Image Comparison / Tamper Detection
+ * Compares uploaded image with original to detect tampering
+ * Uses CLIP embeddings if Python service is available, otherwise falls back to basic comparison
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import axios from 'axios';
@@ -5,7 +11,10 @@ import axios from 'axios';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Simple perceptual hash function (fallback if Python service not available)
+/**
+ * Simple perceptual hash function (fallback if Python service not available)
+ * For production, use CLIP embeddings for better accuracy
+ */
 function computePerceptualHash(imageBuffer: Buffer): string {
   // This is a simplified perceptual hash - for production, use CLIP embeddings
   // For now, we'll use a hash of resized image data

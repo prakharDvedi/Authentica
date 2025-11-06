@@ -1,16 +1,56 @@
+/**
+ * AI Image Generation Library
+ * Handles image generation using OpenAI DALL-E 3 and Stability AI
+ * Also captures transparency metadata for AI-generated content
+ */
+
 import OpenAI from 'openai';
 import axios from 'axios';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
 });
 
+// Initialize Google Gemini for text generation (optional)
 const genAI = process.env.GEMINI_API_KEY 
   ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
   : null;
 
-export async function generateImage(prompt: string): Promise<Buffer> {
+/**
+ * Transparency metadata interface
+ * Captures all parameters used during AI image generation for transparency
+ */
+export interface TransparencyData {
+  model: string;
+  provider: 'stability' | 'openai';
+  steps?: number;
+  seed?: number;
+  sampler?: string;
+  cfgScale?: number;
+  width: number;
+  height: number;
+  prompt: string;
+  timestamp: number;
+}
+
+/**
+ * Result of image generation
+ * Contains both the image buffer and transparency metadata
+ */
+export interface ImageGenerationResult {
+  image: Buffer;
+  transparency: TransparencyData;
+}
+
+/**
+ * Main image generation function
+ * Tries Stability AI first, falls back to OpenAI DALL-E 3
+ * Returns image buffer and transparency metadata
+ */
+export async function generateImage(prompt: string): Promise<ImageGenerationResult> {
+  // Try Stability AI first (preferred for more transparency data)
   if (process.env.STABILITY_API_KEY) {
     try {
       return await generateImageStability(prompt);
@@ -26,6 +66,7 @@ export async function generateImage(prompt: string): Promise<Buffer> {
   }
 
   try {
+    const timestamp = Date.now();
     const response = await openai.images.generate({
       model: 'dall-e-3',
       prompt: prompt,
@@ -47,14 +88,35 @@ export async function generateImage(prompt: string): Promise<Buffer> {
       responseType: 'arraybuffer',
     });
 
-    return Buffer.from(imageResponse.data);
+    const imageBuffer = Buffer.from(imageResponse.data);
+
+    // Extract transparency metadata from OpenAI response
+    const transparency: TransparencyData = {
+      model: 'dall-e-3',
+      provider: 'openai',
+      width: 1024,
+      height: 1024,
+      prompt: prompt,
+      timestamp: timestamp,
+      // OpenAI doesn't expose seed, steps, sampler, cfg_scale
+    };
+
+    return {
+      image: imageBuffer,
+      transparency,
+    };
   } catch (error) {
     console.error('Image generation error:', error);
     throw new Error('Failed to generate image');
   }
 }
 
+/**
+ * Text generation function
+ * Uses Gemini if available, otherwise falls back to OpenAI GPT-4
+ */
 export async function generateText(prompt: string): Promise<string> {
+  // Try Gemini first (if API key is available)
   if (genAI) {
     try {
       const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
@@ -88,17 +150,29 @@ export async function generateText(prompt: string): Promise<string> {
   }
 }
 
-export async function generateImageStability(prompt: string): Promise<Buffer> {
+/**
+ * Generate image using Stability AI (Stable Diffusion XL)
+ * Provides full transparency metadata including seed, steps, sampler, etc.
+ */
+export async function generateImageStability(prompt: string): Promise<ImageGenerationResult> {
   try {
+    const timestamp = Date.now();
+    // Generation parameters - these are captured for transparency
+    const cfgScale = 7; // Classifier-free guidance scale
+    const height = 1024;
+    const width = 1024;
+    const steps = 30; // Number of denoising steps
+    const samples = 1;
+
     const response = await axios.post(
       'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image',
       {
         text_prompts: [{ text: prompt }],
-        cfg_scale: 7,
-        height: 1024,
-        width: 1024,
-        steps: 30,
-        samples: 1,
+        cfg_scale: cfgScale,
+        height: height,
+        width: width,
+        steps: steps,
+        samples: samples,
       },
       {
         headers: {
@@ -116,8 +190,28 @@ export async function generateImageStability(prompt: string): Promise<Buffer> {
       throw new Error('No image returned from Stability AI');
     }
 
-    const base64Image = data.artifacts[0].base64;
-    return Buffer.from(base64Image, 'base64');
+    const artifact = data.artifacts[0];
+    const base64Image = artifact.base64;
+    const imageBuffer = Buffer.from(base64Image, 'base64');
+
+    // Extract transparency metadata from Stability AI response
+    const transparency: TransparencyData = {
+      model: 'stable-diffusion-xl-1024-v1-0',
+      provider: 'stability',
+      steps: steps,
+      seed: artifact.seed || undefined,
+      sampler: 'Euler a', // Default sampler for Stability AI
+      cfgScale: cfgScale,
+      width: width,
+      height: height,
+      prompt: prompt,
+      timestamp: timestamp,
+    };
+
+    return {
+      image: imageBuffer,
+      transparency,
+    };
   } catch (error: any) {
     console.error('Stability AI generation error:', error);
     if (error.response) {
