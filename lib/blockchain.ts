@@ -54,6 +54,9 @@ export async function registerProofOnChain(
     const contract = getContract(signer);
     
     // Verify contract exists at address
+    if (!signer.provider) {
+      throw new Error('Signer does not have a provider. Please connect to a network.');
+    }
     const code = await signer.provider.getCode(contractAddress);
     if (code === '0x') {
       throw new Error(`No contract found at address ${contractAddress}. Please deploy the contract first.`);
