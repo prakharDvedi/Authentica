@@ -92,7 +92,7 @@ Timestamp: ${new Date(transparency.timestamp).toISOString()}`;
           <div>
             <p className="text-xs text-stone-600 mb-1">Provider</p>
             <p className="text-sm font-semibold text-stone-800 bg-white/80 p-2 rounded border border-blue-200/50">
-              {transparency.provider === 'stability' ? 'Stability AI' : 'OpenAI'}
+              Stability AI
             </p>
           </div>
           <div>

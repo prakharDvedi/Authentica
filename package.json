@@ -13,7 +13,6 @@
     "deploy-proof-of-art": "hardhat run scripts/deploy-proof-of-art.js --network sepolia"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.2.1",
     "@rainbow-me/rainbowkit": "^1.2.0",
     "@tanstack/react-query": "^4.36.1",
     "@wagmi/core": "^1.4.11",
@@ -25,7 +24,6 @@
     "ipfs-http-client": "^60.0.1",
     "jspdf": "^3.0.3",
     "next": "^14.0.4",
-    "openai": "^4.20.0",
     "qrcode": "^1.5.4",
     "qrcode.react": "^3.1.0",
     "react": "^18.2.0",

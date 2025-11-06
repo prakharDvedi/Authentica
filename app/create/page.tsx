@@ -2,7 +2,7 @@
  * Create Page Component
  * Main page for generating AI artwork and creating proofs
  * Features:
- * - AI image generation (OpenAI DALL-E 3 or Stability AI)
+ * - AI image generation (Stability AI)
  * - Face verification capture
  * - Cryptographic proof creation
  * - Blockchain registration

@@ -50,28 +50,19 @@ export async function POST(request: NextRequest) {
     }
 
     const stabilityKey = process.env.STABILITY_API_KEY?.trim();
-    const openAIKey = process.env.OPENAI_API_KEY?.trim();
     const hasStabilityKey = stabilityKey && 
       stabilityKey !== 'your-stability-api-key-here' && 
       stabilityKey !== '' &&
       stabilityKey.length > 10;
-    const hasOpenAIKey = openAIKey && 
-      openAIKey !== 'sk-your-key-here' && 
-      openAIKey !== 'sk-your-ke...' && 
-      openAIKey !== '' &&
-      openAIKey.length > 10;
     
-    if (!hasStabilityKey && !hasOpenAIKey) {
+    if (!hasStabilityKey) {
       return NextResponse.json(
         { 
-          error: 'No image generation API key found. Please set either STABILITY_API_KEY or OPENAI_API_KEY in your .env file. Note: Gemini API key is for text generation only, not images.',
+          error: 'No image generation API key found. Please set STABILITY_API_KEY in your .env file.',
           debug: {
             stabilityKeySet: !!stabilityKey,
             stabilityKeyLength: stabilityKey?.length || 0,
             stabilityKeyPrefix: stabilityKey ? stabilityKey.substring(0, 5) + '...' : 'not set',
-            openAIKeySet: !!openAIKey,
-            openAIKeyLength: openAIKey?.length || 0,
-            allEnvKeys: Object.keys(process.env).filter(k => k.includes('API') || k.includes('KEY')).join(', ')
           }
         },
         { status: 500 }

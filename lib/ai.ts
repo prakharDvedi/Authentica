@@ -1,22 +1,10 @@
 /**
  * AI Image Generation Library
- * Handles image generation using OpenAI DALL-E 3 and Stability AI
+ * Handles image generation using Stability AI
  * Also captures transparency metadata for AI-generated content
  */
 
-import OpenAI from 'openai';
 import axios from 'axios';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
-
-// Initialize Google Gemini for text generation (optional)
-const genAI = process.env.GEMINI_API_KEY 
-  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-  : null;
 
 /**
  * Transparency metadata interface
@@ -24,7 +12,7 @@ const genAI = process.env.GEMINI_API_KEY
  */
 export interface TransparencyData {
   model: string;
-  provider: 'stability' | 'openai';
+  provider: 'stability';
   steps?: number;
   seed?: number;
   sampler?: string;
@@ -46,109 +34,19 @@ export interface ImageGenerationResult {
 
 /**
  * Main image generation function
- * Tries Stability AI first, falls back to OpenAI DALL-E 3
+ * Uses Stability AI for image generation
  * Returns image buffer and transparency metadata
  */
 export async function generateImage(prompt: string): Promise<ImageGenerationResult> {
-  // Try Stability AI first (preferred for more transparency data)
-  if (process.env.STABILITY_API_KEY) {
-    try {
-      return await generateImageStability(prompt);
-    } catch (error) {
-      console.error('Stability AI failed, trying OpenAI...', error);
-    }
-  }
-
-  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'sk-your-key-here') {
+  if (!process.env.STABILITY_API_KEY) {
     throw new Error(
-      'No image generation API key found. Please set either STABILITY_API_KEY or OPENAI_API_KEY in your .env file.'
+      'No image generation API key found. Please set STABILITY_API_KEY in your .env file.'
     );
   }
 
-  try {
-    const timestamp = Date.now();
-    const response = await openai.images.generate({
-      model: 'dall-e-3',
-      prompt: prompt,
-      n: 1,
-      size: '1024x1024',
-      response_format: 'url',
-    });
-
-    if (!response.data || !response.data[0]) {
-      throw new Error('No image data returned from OpenAI');
-    }
-
-    const imageUrl = response.data[0].url;
-    if (!imageUrl) {
-      throw new Error('No image URL returned');
-    }
-
-    const imageResponse = await axios.get(imageUrl, {
-      responseType: 'arraybuffer',
-    });
-
-    const imageBuffer = Buffer.from(imageResponse.data);
-
-    // Extract transparency metadata from OpenAI response
-    const transparency: TransparencyData = {
-      model: 'dall-e-3',
-      provider: 'openai',
-      width: 1024,
-      height: 1024,
-      prompt: prompt,
-      timestamp: timestamp,
-      // OpenAI doesn't expose seed, steps, sampler, cfg_scale
-    };
-
-    return {
-      image: imageBuffer,
-      transparency,
-    };
-  } catch (error) {
-    console.error('Image generation error:', error);
-    throw new Error('Failed to generate image');
-  }
+  return await generateImageStability(prompt);
 }
 
-/**
- * Text generation function
- * Uses Gemini if available, otherwise falls back to OpenAI GPT-4
- */
-export async function generateText(prompt: string): Promise<string> {
-  // Try Gemini first (if API key is available)
-  if (genAI) {
-    try {
-      const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      return response.text();
-    } catch (error) {
-      console.error('Gemini text generation error:', error);
-      if (!process.env.OPENAI_API_KEY) {
-        throw new Error('Failed to generate text with Gemini');
-      }
-    }
-  }
-
-  try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      max_tokens: 1000,
-    });
-
-    return response.choices[0]?.message?.content || '';
-  } catch (error) {
-    console.error('Text generation error:', error);
-    throw new Error('Failed to generate text');
-  }
-}
 
 /**
  * Generate image using Stability AI (Stable Diffusion XL)
