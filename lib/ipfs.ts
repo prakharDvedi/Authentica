@@ -26,7 +26,6 @@ async function getIpfsClient() {
     return 'pinata';
   }
 
-  // Initialize IPFS client if not already created
   if (!ipfsClient) {
     try {
       if (!ipfsModule) {
@@ -134,7 +133,6 @@ export async function uploadToIpfs(file: Buffer, filename?: string): Promise<str
       content: file,
     });
     
-    // Return CID (Content Identifier) - unique hash for the file
     return result.cid.toString();
   } catch (error: any) {
     console.error('IPFS upload error:', error);
@@ -203,7 +201,6 @@ export async function uploadMetadataToIpfs(metadata: object): Promise<string> {
       throw new Error('IPFS client not available');
     }
     
-    // Convert metadata to JSON and upload
     const metadataString = JSON.stringify(metadata, null, 2);
     const result = await client.add({
       path: `metadata-${Date.now()}.json`,

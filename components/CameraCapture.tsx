@@ -29,14 +29,12 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
 
   useEffect(() => {
     return () => {
-      // Cleanup: stop camera stream when component unmounts
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
     };
   }, []);
 
-  // Effect to set video stream when video element is rendered
   useEffect(() => {
     if (isStreaming && streamRef.current && videoRef.current) {
       if (!videoRef.current.srcObject) {
@@ -47,13 +45,11 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
           setError('Failed to start video stream');
         });
         
-        // Start face detection once video is playing
         startFaceDetection();
       }
     }
     
     return () => {
-      // Cleanup detection interval
       if (detectionIntervalRef.current) {
         clearInterval(detectionIntervalRef.current);
         detectionIntervalRef.current = null;
@@ -61,7 +57,6 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
     };
   }, [isStreaming]);
 
-  // Simple face detection using canvas and basic image analysis
   const detectFace = async (): Promise<boolean> => {
     if (!videoRef.current || !canvasRef.current) {
       return false;
@@ -76,28 +71,20 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
     }
 
     try {
-      // Set canvas dimensions
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
-      // Draw video frame
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Get image data
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
 
-      // Simple face detection heuristic:
-      // Look for skin-tone colors and face-like patterns
-      // This is a basic check - for production, use a proper face detection library
-      
       let skinTonePixels = 0;
       let faceRegionPixels = 0;
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
       const faceRegionRadius = Math.min(canvas.width, canvas.height) * 0.3;
 
-      // Analyze pixels in the center region (where face typically is)
       for (let y = centerY - faceRegionRadius; y < centerY + faceRegionRadius; y += 4) {
         for (let x = centerX - faceRegionRadius; x < centerX + faceRegionRadius; x += 4) {
           if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) continue;
@@ -108,8 +95,6 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
           const b = data[idx + 2];
           const brightness = (r + g + b) / 3;
 
-          // Skin tone detection (simplified)
-          // Skin tones typically have: R > G > B, and moderate brightness
           if (r > g && g > b && brightness > 60 && brightness < 220) {
             skinTonePixels++;
           }
@@ -117,9 +102,8 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
         }
       }
 
-      // If we have enough skin-tone pixels in the center region, likely a face
       const skinToneRatio = faceRegionPixels > 0 ? skinTonePixels / faceRegionPixels : 0;
-      const hasFace = skinToneRatio > 0.15; // Threshold: 15% of center region should be skin-tone
+      const hasFace = skinToneRatio > 0.15;
 
       return hasFace;
     } catch (err) {
@@ -135,7 +119,6 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
 
     setDetectingFace(true);
     
-    // Check for face every 500ms
     detectionIntervalRef.current = setInterval(async () => {
       const detected = await detectFace();
       setFaceDetected(detected);
@@ -147,7 +130,6 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
     setError(null);
     
     try {
-      // Check if getUserMedia is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         const errorMsg = 'Camera API not available. Please use a modern browser with HTTPS.';
         setError(errorMsg);
@@ -160,7 +142,7 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
       console.log('Requesting camera access...');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'user', // Front-facing camera
+          facingMode: 'user',
           width: { ideal: 640 },
           height: { ideal: 480 },
         },
@@ -169,8 +151,6 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
       console.log('Camera access granted, setting up video...');
       streamRef.current = stream;
       
-      // Set streaming state first so video element is rendered
-      // The useEffect will handle setting the stream once the element is rendered
       setIsStreaming(true);
       setCaptured(false);
       setIsLoading(false);
@@ -190,7 +170,6 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
       setError(errorMsg);
       onError(errorMsg);
       
-      // Try with simpler constraints if there was an error
       if (err.name === 'OverconstrainedError') {
         try {
           console.log('Retrying with simpler constraints...');
@@ -241,7 +220,6 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
       return;
     }
 
-    // Verify face is detected before capturing
     const hasFace = await detectFace();
     if (!hasFace) {
       setError('No face detected. Please position yourself in front of the camera.');
@@ -259,14 +237,11 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
         return;
       }
 
-      // Set canvas dimensions to match video
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
-      // Draw video frame to canvas
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Overlay timestamp
       const timestamp = new Date();
       const timestampString = timestamp.toISOString();
       
@@ -281,7 +256,6 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
       ctx.font = '16px Arial';
       ctx.fillText(timestampString, 10, canvas.height - 10);
 
-      // Convert canvas to blob
       canvas.toBlob(async (blob) => {
         if (!blob) {
           onError('Failed to capture image');
@@ -289,10 +263,8 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
         }
 
         try {
-          // Convert blob to array buffer for hashing
           const arrayBuffer = await blob.arrayBuffer();
 
-          // Hash the image using SHA-256 (browser crypto API)
           const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
           const hashArray = Array.from(new Uint8Array(hashBuffer));
           const faceHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
@@ -313,7 +285,7 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
     <div className="space-y-4">
       <div className="bg-white/80 rounded-lg p-4 border border-green-200/50">
         <h3 className="text-lg font-semibold text-stone-800 mb-2">
-          📸 Face Verification
+          Face Verification
         </h3>
         <p className="text-sm text-stone-600 mb-4">
           Capture a photo to prove you&apos;re a real human creator. Only the hash is stored, not your image.
@@ -331,7 +303,7 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
             disabled={disabled || isLoading}
             className="w-full bg-green-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-green-700 disabled:bg-stone-300 disabled:text-stone-500 disabled:cursor-not-allowed transition-colors"
           >
-            {isLoading ? '⏳ Requesting camera access...' : '📷 Start Camera'}
+            {isLoading ? 'Requesting camera access...' : 'Start Camera'}
           </button>
         )}
 
@@ -364,7 +336,7 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      <span className="animate-pulse">⏳</span> Detecting face...
+                      <span className="animate-pulse"></span> Detecting face...
                     </span>
                   )}
                 </div>
@@ -374,7 +346,7 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
             {!faceDetected && detectingFace && (
               <div className="bg-yellow-100 border border-yellow-300 rounded-lg p-3">
                 <p className="text-sm text-yellow-800">
-                  ⚠️ Please position your face in front of the camera. Face detection is required.
+                  Please position your face in front of the camera. Face detection is required.
                 </p>
               </div>
             )}
@@ -385,13 +357,13 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
                 disabled={!faceDetected}
                 className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-green-700 disabled:bg-stone-300 disabled:text-stone-500 disabled:cursor-not-allowed transition-colors"
               >
-                📸 Capture Photo {faceDetected ? '' : '(Face required)'}
+                Capture Photo {faceDetected ? '' : '(Face required)'}
               </button>
               <button
                 onClick={stopCamera}
                 className="flex-1 bg-stone-400 text-white py-2 px-4 rounded-lg font-semibold hover:bg-stone-500 transition-colors"
               >
-                ❌ Cancel
+                Cancel
               </button>
             </div>
           </div>
@@ -400,7 +372,7 @@ export default function CameraCapture({ onCapture, onError, disabled }: CameraCa
         {captured && (
           <div className="bg-green-100 border border-green-300 rounded-lg p-3">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">✅</span>
+              <span className="text-2xl"></span>
               <div>
                 <p className="text-sm font-semibold text-green-800">
                   Face verification captured!

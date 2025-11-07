@@ -20,17 +20,16 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   try {
-    // Lazy load IPFS functions (only if needed)
     if (!uploadToIpfs || !uploadMetadataToIpfs) {
       try {
         const ipfsModule = await import('@/lib/ipfs');
         uploadToIpfs = ipfsModule.uploadToIpfs;
         uploadMetadataToIpfs = ipfsModule.uploadMetadataToIpfs;
-        console.log('✅ IPFS module loaded successfully');
+        console.log('IPFS module loaded successfully');
         console.log('IPFS_API_URL:', process.env.IPFS_API_URL ? 'Set' : 'Not set');
         console.log('IPFS_AUTH:', process.env.IPFS_AUTH ? 'Set (length: ' + process.env.IPFS_AUTH.length + ')' : 'Not set');
       } catch (error: any) {
-        console.error('❌ Failed to import IPFS module:', error);
+        console.error('Failed to import IPFS module:', error);
       }
     }
 
@@ -108,7 +107,6 @@ export async function POST(request: NextRequest) {
         const result = await generateMusic(prompt);
         outputBuffer = result.audio;
         transparencyData = result.transparency;
-        // BeatOven returns MP3, dummy audio returns WAV
         contentType = result.transparency.provider === 'beatoven' ? 'audio/mpeg' : 'audio/wav';
         fileExtension = result.transparency.provider === 'beatoven' ? '.mp3' : '.wav';
       } catch (error: any) {
@@ -128,8 +126,7 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now();
     const proof = generateProof(prompt, outputBuffer, userAddress, timestamp);
 
-    // Encrypt content before uploading to IPFS (creator-only access)
-    console.log('🔐 Encrypting content for IPFS storage...');
+    console.log('Encrypting content for IPFS storage...');
     const encrypted = encryptContent(outputBuffer, userAddress);
     const encryptedPayload = createEncryptedPayload(
       encrypted.encrypted,
@@ -141,18 +138,17 @@ export async function POST(request: NextRequest) {
     let outputCid: string;
     if (uploadToIpfs) {
       try {
-        console.log('📤 Uploading encrypted content to IPFS...');
+        console.log('Uploading encrypted content to IPFS...');
         const fileName = type === 'image' ? `output-${timestamp}.encrypted` : `output-${timestamp}.encrypted`;
-        // Upload encrypted payload instead of original content
         outputCid = await uploadToIpfs(encryptedPayload, fileName);
-        console.log('✅ IPFS upload successful (encrypted):', outputCid);
+        console.log('IPFS upload successful (encrypted):', outputCid);
       } catch (error: any) {
-        console.error('❌ IPFS upload error:', error);
+        console.error('IPFS upload error:', error);
         console.error('Error details:', error.message, error.response?.data);
         outputCid = 'ipfs-upload-failed';
       }
     } else {
-      console.warn('⚠️ IPFS upload function not available');
+      console.warn('IPFS upload function not available');
       outputCid = 'ipfs-not-available';
     }
     const outputHash = hashBuffer(outputBuffer);
@@ -166,8 +162,8 @@ export async function POST(request: NextRequest) {
       timestamp,
       ipfsLink: outputCid,
       type,
-      encrypted: true, // Mark as encrypted
-      keyHash: encrypted.keyHash, // Store key hash for verification
+      encrypted: true,
+      keyHash: encrypted.keyHash,
       ...(faceHash && { faceHash, faceTimestamp }),
       ...(transparencyData && { transparency: transparencyData }),
     };
@@ -175,16 +171,16 @@ export async function POST(request: NextRequest) {
     let metadataCid: string;
     if (uploadMetadataToIpfs) {
       try {
-        console.log('📤 Uploading metadata to IPFS...');
+        console.log('Uploading metadata to IPFS...');
         metadataCid = await uploadMetadataToIpfs(metadata);
-        console.log('✅ IPFS metadata upload successful:', metadataCid);
+        console.log('IPFS metadata upload successful:', metadataCid);
       } catch (error: any) {
-        console.error('❌ IPFS metadata upload error:', error);
+        console.error('IPFS metadata upload error:', error);
         console.error('Error details:', error.message, error.response?.data);
         metadataCid = 'ipfs-upload-failed';
       }
     } else {
-      console.warn('⚠️ IPFS metadata upload function not available');
+      console.warn('IPFS metadata upload function not available');
       metadataCid = 'ipfs-not-available';
     }
 

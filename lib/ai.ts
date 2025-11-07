@@ -1,8 +1,6 @@
 /**
  * AI Generation Library
- * Handles image generation using Stability AI
- * Handles music generation using BeatOven API (with dummy audio fallback)
- * Also captures transparency metadata for AI-generated content
+ * Handles image and music generation with transparency metadata
  */
 
 import axios from 'axios';
@@ -26,7 +24,6 @@ export interface TransparencyData {
 
 /**
  * Result of image generation
- * Contains both the image buffer and transparency metadata
  */
 export interface ImageGenerationResult {
   image: Buffer;
@@ -35,8 +32,6 @@ export interface ImageGenerationResult {
 
 /**
  * Main image generation function
- * Uses Stability AI for image generation
- * Returns image buffer and transparency metadata
  */
 export async function generateImage(prompt: string): Promise<ImageGenerationResult> {
   if (!process.env.STABILITY_API_KEY) {
@@ -50,17 +45,15 @@ export async function generateImage(prompt: string): Promise<ImageGenerationResu
 
 
 /**
- * Generate image using Stability AI (Stable Diffusion XL)
- * Provides full transparency metadata including seed, steps, sampler, etc.
+ * Generate image using Stability AI
  */
 export async function generateImageStability(prompt: string): Promise<ImageGenerationResult> {
   try {
     const timestamp = Date.now();
-    // Generation parameters - these are captured for transparency
-    const cfgScale = 7; // Classifier-free guidance scale
+    const cfgScale = 7;
     const height = 1024;
     const width = 1024;
-    const steps = 30; // Number of denoising steps
+    const steps = 30;
     const samples = 1;
 
     const response = await axios.post(
@@ -93,13 +86,12 @@ export async function generateImageStability(prompt: string): Promise<ImageGener
     const base64Image = artifact.base64;
     const imageBuffer = Buffer.from(base64Image, 'base64');
 
-    // Extract transparency metadata from Stability AI response
     const transparency: TransparencyData = {
       model: 'stable-diffusion-xl-1024-v1-0',
       provider: 'stability',
       steps: steps,
       seed: artifact.seed || undefined,
-      sampler: 'Euler a', // Default sampler for Stability AI
+      sampler: 'Euler a',
       cfgScale: cfgScale,
       width: width,
       height: height,
@@ -135,7 +127,6 @@ export interface MusicTransparencyData {
 
 /**
  * Result of music generation
- * Contains both the audio buffer and transparency metadata
  */
 export interface MusicGenerationResult {
   audio: Buffer;
@@ -144,24 +135,19 @@ export interface MusicGenerationResult {
 
 /**
  * Main music generation function
- * Tries BeatOven API first, falls back to dummy audio if it fails
- * Returns audio buffer and transparency metadata
  */
 export async function generateMusic(prompt: string): Promise<MusicGenerationResult> {
   const rapidApiKey = process.env.RAPIDAPI_KEY?.trim();
   
-  // Try BeatOven API if key is available
   if (rapidApiKey) {
     try {
       return await generateMusicBeatOven(prompt, rapidApiKey);
     } catch (error: any) {
-      console.warn('⚠️ BeatOven API failed, falling back to dummy audio:', error.message);
-      // Fall through to dummy audio generation
+      console.warn('BeatOven API failed, falling back to dummy audio:', error.message);
     }
   }
   
-  // Fallback to dummy audio
-  console.log('🎵 Using dummy audio generation (BeatOven API not available or failed)');
+  console.log('Using dummy audio generation (BeatOven API not available or failed)');
   return await generateDummyAudio(prompt);
 }
 
@@ -175,23 +161,18 @@ async function generateMusicBeatOven(
 ): Promise<MusicGenerationResult> {
   const timestamp = Date.now();
   
-  console.log('🎵 Generating music with BeatOven API...');
+  console.log('Generating music with BeatOven API...');
   
-  // Extract genre and mood from prompt (simple parsing)
-  // You can enhance this with better prompt parsing
   const genre = extractGenreFromPrompt(prompt) || 'pop';
   const mood = extractMoodFromPrompt(prompt) || 'happy';
-  const duration = 30; // 30 seconds default
+  const duration = 30;
   
   try {
-    // Step 1: Create music generation task
-    // Correct endpoint: /api/v1/tracks/compose
     const composeUrl = 'https://beatoven-ai-music-generation-api.p.rapidapi.com/api/v1/tracks/compose';
     
-    // Build prompt text from genre, mood, and duration
     const promptText = `${duration} seconds ${mood} ${genre} track`;
     
-    console.log('📤 Requesting music generation from BeatOven...');
+    console.log('Requesting music generation from BeatOven...');
     console.log('Prompt:', promptText);
     console.log('RapidAPI Key (first 10 chars):', rapidApiKey?.substring(0, 10) + '...');
     console.log('RapidAPI Key length:', rapidApiKey?.length);
@@ -215,7 +196,7 @@ async function generateMusicBeatOven(
     );
     
     const composeData = composeResponse.data;
-    console.log('✅ Request successful! Response:', JSON.stringify(composeData, null, 2));
+    console.log('Request successful! Response:', JSON.stringify(composeData, null, 2));
     
     // Extract task ID
     let taskId: string | null = null;
@@ -236,12 +217,10 @@ async function generateMusicBeatOven(
     console.log('🔄 Task ID received:', taskId);
     console.log('⏳ Polling for music generation status...');
     
-    // Step 2: Poll for completion
-    // Correct endpoint: /api/v1/tasks/{task_id}
     const statusUrl = `https://beatoven-ai-music-generation-api.p.rapidapi.com/api/v1/tasks/${taskId}`;
     
-    const maxAttempts = 60; // 5 minutes max (5 seconds per attempt)
-    const pollInterval = 5000; // 5 seconds
+    const maxAttempts = 60;
+    const pollInterval = 5000;
     
     let audioUrl: string | null = null;
     
@@ -261,9 +240,7 @@ async function generateMusicBeatOven(
         const statusData = statusResponse.data;
         console.log(`📊 Poll attempt ${attempt + 1}:`, statusData?.status || 'unknown');
         
-        // Check if completed
         if (statusData?.status === 'completed' || statusData?.status === 'success') {
-          // Extract audio URL
           if (statusData?.url) {
             audioUrl = statusData.url;
           } else if (statusData?.data?.url) {
@@ -277,7 +254,7 @@ async function generateMusicBeatOven(
           }
           
           if (audioUrl) {
-            console.log('✅ Music generation completed! URL:', audioUrl);
+            console.log('Music generation completed! URL:', audioUrl);
             break;
           }
         } else if (statusData?.status === 'failed' || statusData?.status === 'error') {
@@ -286,15 +263,12 @@ async function generateMusicBeatOven(
             `Message: ${statusData.message || statusData.error || 'Unknown error'}`
           );
         }
-        // If status is 'pending' or 'processing', continue polling
       } catch (pollError: any) {
         if (pollError.response?.status === 404) {
-          // Task not found yet, continue polling
           console.warn(`Poll attempt ${attempt + 1}: Task not found (404), continuing...`);
           continue;
         }
         console.warn(`Poll attempt ${attempt + 1} error:`, pollError.message);
-        // Continue polling
       }
     }
     
@@ -305,12 +279,11 @@ async function generateMusicBeatOven(
       );
     }
     
-    // Step 3: Download the audio file
-    console.log('📥 Downloading audio from:', audioUrl);
+    console.log('Downloading audio from:', audioUrl);
     
     const audioResponse = await axios.get(audioUrl, {
       responseType: 'arraybuffer',
-      timeout: 60000, // 60 seconds for download
+      timeout: 60000,
     });
     
     const audioBuffer = Buffer.from(audioResponse.data);
@@ -323,7 +296,7 @@ async function generateMusicBeatOven(
       timestamp: timestamp,
     };
     
-    console.log('✅ Music generated successfully with BeatOven');
+    console.log('Music generated successfully with BeatOven');
     
     return {
       audio: audioBuffer,
@@ -379,11 +352,11 @@ function extractGenreFromPrompt(prompt: string): string | null {
     }
   }
   
-  return null; // Default will be used
+  return null;
 }
 
 /**
- * Extract mood from prompt (simple keyword matching)
+ * Extract mood from prompt
  */
 function extractMoodFromPrompt(prompt: string): string | null {
   const promptLower = prompt.toLowerCase();
@@ -399,44 +372,60 @@ function extractMoodFromPrompt(prompt: string): string | null {
     }
   }
   
-  return null; // Default will be used
+  return null;
 }
 
 /**
  * Generate dummy audio for demonstration/fallback
- * Creates a simple WAV audio file for testing when API is unavailable
  */
 async function generateDummyAudio(prompt: string): Promise<MusicGenerationResult> {
   const timestamp = Date.now();
   
-  // Generate a simple sine wave tone (440Hz for 2 seconds) as WAV format
   const sampleRate = 44100;
-  const duration = 2; // 2 seconds for demo
-  const frequency = 440; // A4 note
+  const duration = 10;
   const samples = sampleRate * duration;
   
-  // Create WAV file buffer
-  const buffer = Buffer.alloc(44 + samples * 2); // WAV header (44 bytes) + 16-bit samples
+  const notes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
+  const noteDuration = duration / 8;
   
-  // Write WAV header
+  const buffer = Buffer.alloc(44 + samples * 2);
+  
   buffer.write('RIFF', 0);
-  buffer.writeUInt32LE(36 + samples * 2, 4); // File size - 8
+  buffer.writeUInt32LE(36 + samples * 2, 4);
   buffer.write('WAVE', 8);
   buffer.write('fmt ', 12);
-  buffer.writeUInt32LE(16, 16); // Subchunk1Size
-  buffer.writeUInt16LE(1, 20); // AudioFormat (PCM)
-  buffer.writeUInt16LE(1, 22); // NumChannels (mono)
-  buffer.writeUInt32LE(sampleRate, 24); // SampleRate
-  buffer.writeUInt32LE(sampleRate * 2, 28); // ByteRate
-  buffer.writeUInt16LE(2, 32); // BlockAlign
-  buffer.writeUInt16LE(16, 34); // BitsPerSample
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * 2, 28);
+  buffer.writeUInt16LE(2, 32);
+  buffer.writeUInt16LE(16, 34);
   buffer.write('data', 36);
-  buffer.writeUInt32LE(samples * 2, 40); // Subchunk2Size
+  buffer.writeUInt32LE(samples * 2, 40);
   
-  // Generate sine wave samples
   for (let i = 0; i < samples; i++) {
-    const sample = Math.sin(2 * Math.PI * frequency * i / sampleRate);
-    const intSample = Math.floor(sample * 32767);
+    const time = i / sampleRate;
+    const noteIndex = Math.floor(time / noteDuration) % notes.length;
+    const frequency = notes[noteIndex];
+    
+    const t = 2 * Math.PI * frequency * time;
+    let sample = Math.sin(t);
+    
+    sample += 0.3 * Math.sin(2 * t);
+    sample += 0.1 * Math.sin(3 * t);
+    
+    const noteTime = time % noteDuration;
+    const envelope = Math.min(1, noteTime * 2) * Math.min(1, (noteDuration - noteTime) * 2);
+    sample *= envelope;
+    
+    const bassFreq = frequency / 2;
+    const bassT = 2 * Math.PI * bassFreq * time;
+    sample += 0.2 * Math.sin(bassT) * envelope;
+    
+    sample = Math.max(-1, Math.min(1, sample));
+    const intSample = Math.floor(sample * 16383);
+    
     buffer.writeInt16LE(intSample, 44 + i * 2);
   }
   
@@ -448,7 +437,7 @@ async function generateDummyAudio(prompt: string): Promise<MusicGenerationResult
     timestamp: timestamp,
   };
   
-  console.log('✅ Dummy audio generated for demonstration');
+  console.log('Dummy audio generated (10 seconds with melody) for demonstration');
   
   return {
     audio: buffer,

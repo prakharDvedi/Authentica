@@ -1,13 +1,6 @@
 /**
  * Create Page Component
  * Main page for generating AI artwork and creating proofs
- * Features:
- * - AI image generation (Stability AI)
- * - Face verification capture
- * - Cryptographic proof creation
- * - Blockchain registration
- * - IPFS storage
- * - Transparency card display
  */
 
 'use client';
@@ -43,6 +36,8 @@ export default function CreatePage() {
   const [faceHash, setFaceHash] = useState<string | null>(null);
   const [faceTimestamp, setFaceTimestamp] = useState<number | null>(null);
   const [transparencyData, setTransparencyData] = useState<any>(null);
+  const [decrypting, setDecrypting] = useState(false);
+  const [decryptedContent, setDecryptedContent] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     if (!prompt.trim() || !isConnected || !address) {
@@ -102,7 +97,7 @@ export default function CreatePage() {
       
       // Debug logging - check environment variable
       const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
-      console.log('🔍 Transaction Debug:', {
+      console.log('Transaction Debug:', {
         walletClient: !!walletClient,
         walletClientType: walletClient ? typeof walletClient : 'null',
         isConnected,
@@ -119,10 +114,10 @@ export default function CreatePage() {
       }
       
       if (!isConnected || !address) {
-        console.error('❌ Wallet not connected');
+        console.error('Wallet not connected');
         alert('Wallet not connected. Please connect your wallet using the "Connect Wallet" button and try again.');
       } else if (!walletClient) {
-        console.error('❌ Wallet client not available');
+        console.error('Wallet client not available');
         console.error('This might be a timing issue. Try waiting a moment and generating again.');
         alert('Wallet client not available. Please:\n1. Make sure your wallet is connected\n2. Wait a moment\n3. Try generating again');
       } else {
@@ -154,7 +149,7 @@ export default function CreatePage() {
             throw new Error(`Network mismatch! Wallet is on Chain ID ${network.chainId}, but contract is on Sepolia (11155111). Please switch to Sepolia testnet in MetaMask and try again.`);
           }
           
-          console.log('🚀 Starting blockchain registration...');
+          console.log('Starting blockchain registration...');
           console.log('Contract address:', process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || 'NOT SET');
           console.log('RPC URL:', process.env.NEXT_PUBLIC_RPC_URL ? 'Set' : 'NOT SET');
           
@@ -165,9 +160,9 @@ export default function CreatePage() {
             ipfsLink: data.proof.outputCid,
           });
           
-          console.log('✅ Transaction successful! Hash:', txHash);
+          console.log('Transaction successful! Hash:', txHash);
         } catch (error: any) {
-          console.error('❌ Blockchain registration error:', error);
+          console.error('Blockchain registration error:', error);
           console.error('Error details:', {
             message: error.message,
             code: error.code,
@@ -199,7 +194,7 @@ export default function CreatePage() {
       
       // Log final status
       if (!txHash) {
-        console.warn('⚠️ Transaction hash is null - transaction was not sent');
+        console.warn('Transaction hash is null - transaction was not sent');
       }
 
       const cert = {
@@ -217,9 +212,13 @@ export default function CreatePage() {
         faceVerified: !!data.proof.faceHash,
         transparency: data.proof.transparency || null,
         encrypted: true, // All content is now encrypted by default
+        type: contentType, // Store content type for decryption
       };
 
       setCertificate(cert);
+      
+      // Reset decrypted content when new certificate is created
+      setDecryptedContent(null);
     } catch (error: any) {
       console.error('Generation error:', error);
       alert('Failed to generate: ' + error.message);
@@ -302,7 +301,7 @@ export default function CreatePage() {
                           : 'bg-white/80 text-stone-700 hover:bg-green-50 border border-green-300'
                       }`}
                     >
-                      🎵 Music
+                      Music
                     </button>
                   </div>
                 </div>
@@ -401,11 +400,11 @@ export default function CreatePage() {
                 <div className="bg-gradient-to-br from-cream-100/90 to-green-50/90 rounded-xl shadow-lg p-8 border-2 border-green-300/50 backdrop-blur-sm">
                   <div className="flex items-center justify-center gap-3 mb-4">
                     <h2 className="text-3xl font-bold text-center text-stone-800">
-                      🎨 Authentica Certificate
+                      Authentica Certificate
                     </h2>
                     {certificate.faceVerified && (
                       <div className="flex items-center gap-2 bg-green-100 px-3 py-1 rounded-full border border-green-300">
-                        <span className="text-lg">✅</span>
+                        <span className="text-lg"></span>
                         <span className="text-sm font-semibold text-green-800">Face Verified</span>
                       </div>
                     )}
@@ -459,48 +458,118 @@ export default function CreatePage() {
 
                     <div>
                       <h3 className="font-semibold text-stone-800 mb-2">
-                        IPFS Link
+                        IPFS Content ID (CID)
                       </h3>
-                      {certificate.encrypted ? (
-                        // Content is encrypted - only show link if user is the creator
-                        address?.toLowerCase() === certificate.creator?.toLowerCase() ? (
-                          <>
-                            <a
-                              href={`https://gateway.pinata.cloud/ipfs/${certificate.ipfsLink}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-green-700 hover:text-green-800 hover:underline break-all"
-                            >
-                              ipfs://{certificate.ipfsLink}
-                            </a>
-                            <p className="text-xs text-green-600 mt-1 font-semibold">
-                              🔐 Encrypted - Only you (creator) can access this content
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-xs text-stone-500 italic">
-                              🔒 Content is encrypted - IPFS link hidden
-                            </p>
-                            <p className="text-xs text-stone-600 mt-1">
-                              Only the creator can access this encrypted content
-                            </p>
-                          </>
-                        )
-                      ) : (
-                        // Not encrypted - show link normally
+                      {/* STRICT ACCESS: Only show CID to creator, and only as copy button (not clickable link) */}
+                      {address && isConnected && address.toLowerCase() === certificate.creator?.toLowerCase() ? (
                         <>
-                          <a
-                            href={`https://gateway.pinata.cloud/ipfs/${certificate.ipfsLink}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-green-700 hover:text-green-800 hover:underline break-all"
-                          >
-                            ipfs://{certificate.ipfsLink}
-                          </a>
-                          <p className="text-xs text-stone-600 mt-1">
-                            (Using Pinata gateway - faster and more reliable)
+                          <div className="flex items-center gap-2 mb-2">
+                            <p className="text-xs font-mono bg-white/80 p-2 rounded break-all text-stone-700 border border-green-200/50 flex-1">
+                              {certificate.ipfsLink}
+                            </p>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(certificate.ipfsLink);
+                                alert('CID copied to clipboard! Use this in your Pinata dashboard.');
+                              }}
+                              className="px-3 py-2 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors"
+                              title="Copy CID to clipboard"
+                            >
+                              Copy CID
+                            </button>
+                          </div>
+                          <p className="text-xs text-green-600 mt-1 font-semibold">
+                            Encrypted - Only you (creator) can decrypt this content
                           </p>
+                          <p className="text-xs text-stone-600 mt-1">
+                            <strong>Private CID:</strong> Do NOT share this CID. Content is encrypted and only accessible through this app with your wallet.
+                          </p>
+                          <p className="text-xs text-amber-600 mt-2 font-medium">
+                            To view content: Click "Decrypt & View" below. Decryption happens securely on our server using your wallet.
+                          </p>
+                          {!decryptedContent && (
+                            <button
+                              onClick={async () => {
+                                if (!address || !certificate.ipfsLink) {
+                                  alert('Wallet not connected or CID missing');
+                                  return;
+                                }
+                                
+                                setDecrypting(true);
+                                try {
+                                  const response = await fetch('/api/decrypt', {
+                                    method: 'POST',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                      ipfsCid: certificate.ipfsLink,
+                                      userAddress: address,
+                                    }),
+                                  });
+
+                                  const data = await response.json();
+
+                                  if (!data.success) {
+                                    throw new Error(data.error || 'Decryption failed');
+                                  }
+
+                                  // Set decrypted content as data URL
+                                  const contentType = certificate.type === 'image' ? 'image/png' : 'audio/mpeg';
+                                  setDecryptedContent(`data:${contentType};base64,${data.decryptedContent}`);
+                                } catch (error: any) {
+                                  console.error('Decryption error:', error);
+                                  alert(`Failed to decrypt: ${error.message}`);
+                                } finally {
+                                  setDecrypting(false);
+                                }
+                              }}
+                              disabled={decrypting || !isConnected}
+                              className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:bg-stone-300 disabled:text-stone-500 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {decrypting ? 'Decrypting...' : 'Decrypt & View Content Securely'}
+                            </button>
+                          )}
+                          {decryptedContent && (
+                            <div className="mt-4">
+                              <p className="text-xs text-green-600 mb-2 font-semibold">
+                                Content decrypted successfully
+                              </p>
+                              {certificate.type === 'image' ? (
+                                <img
+                                  src={decryptedContent}
+                                  alt="Decrypted content"
+                                  className="w-full rounded-lg border border-green-300"
+                                />
+                              ) : (
+                                <audio
+                                  controls
+                                  src={decryptedContent}
+                                  className="w-full rounded-lg"
+                                >
+                                  Your browser does not support the audio element.
+                                </audio>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs text-stone-500 italic font-semibold">
+                            IPFS CID Hidden - Wallet Access Required
+                          </p>
+                          <p className="text-xs text-stone-600 mt-1">
+                            {!isConnected 
+                              ? 'Connect your wallet to view the IPFS CID. Only the creator can access encrypted content.'
+                              : address?.toLowerCase() !== certificate.creator?.toLowerCase()
+                              ? 'This content was created by a different wallet. IPFS CID is hidden for security.'
+                              : 'IPFS CID is encrypted and only accessible by the creator.'}
+                          </p>
+                          {!isConnected && (
+                            <p className="text-xs text-amber-600 mt-2 font-medium">
+                              Connect the creator's wallet to decrypt and view content
+                            </p>
+                          )}
                         </>
                       )}
                     </div>

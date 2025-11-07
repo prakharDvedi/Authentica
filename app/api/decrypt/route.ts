@@ -5,8 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { decryptContent, extractEncryptionComponents } from '@/lib/encryption';
+import { decryptContent, extractEncryptionComponents, deriveKeyFromAddress } from '@/lib/encryption';
 import axios from 'axios';
+import crypto from 'crypto';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,8 +28,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch encrypted content from IPFS
-    console.log('📥 Fetching encrypted content from IPFS:', ipfsCid);
+    const normalizedAddress = userAddress.toLowerCase().trim();
+
+    console.log('Fetching encrypted content from IPFS:', ipfsCid);
     
     const ipfsUrl = `https://gateway.pinata.cloud/ipfs/${ipfsCid}`;
     const response = await axios.get(ipfsUrl, {
@@ -37,30 +39,44 @@ export async function POST(request: NextRequest) {
     });
 
     const encryptedPayload = Buffer.from(response.data);
-    console.log('✅ Fetched encrypted payload, size:', encryptedPayload.length);
+    console.log('Fetched encrypted payload, size:', encryptedPayload.length);
 
-    // Extract encryption components
-    const { iv, tag, encrypted } = extractEncryptionComponents(encryptedPayload);
+    const { keyHash, iv, tag, encrypted } = extractEncryptionComponents(encryptedPayload);
 
-    // Decrypt using user's address (only works if user is creator)
-    console.log('🔓 Decrypting content for address:', userAddress);
+    console.log('Attempting decryption for address:', normalizedAddress);
+    console.log('Key hash from payload:', keyHash);
+    
+    const expectedKey = deriveKeyFromAddress(normalizedAddress);
+    const expectedKeyHash = crypto.createHash('sha256').update(expectedKey).digest('hex');
+    
+    if (keyHash !== expectedKeyHash) {
+      console.error('Key hash mismatch - wallet address does not match creator');
+      console.error('Expected key hash:', expectedKeyHash);
+      console.error('Received key hash:', keyHash);
+      return NextResponse.json(
+        {
+          error: 'Access denied. Your wallet address does not match the creator of this content. Only the creator can decrypt this encrypted content.',
+        },
+        { status: 403 }
+      );
+    }
+    
+    console.log('Key hash verified - wallet address matches creator');
     
     try {
-      const decrypted = decryptContent(encrypted, iv, tag, userAddress);
-      console.log('✅ Content decrypted successfully');
+      const decrypted = decryptContent(encrypted, iv, tag, normalizedAddress);
+      console.log('Content decrypted successfully - wallet address verified');
 
-      // Return decrypted content as base64
       return NextResponse.json({
         success: true,
         decryptedContent: decrypted.toString('base64'),
       });
     } catch (decryptError: any) {
-      console.error('❌ Decryption failed:', decryptError.message);
+      console.error('Decryption failed:', decryptError.message);
       
-      // If decryption fails, it means the user is not the creator
       return NextResponse.json(
         {
-          error: 'Decryption failed. This could mean: 1. You are not the creator of this content 2. The content was encrypted with a different method 3. The content might not be encrypted. If you are the creator, ensure you are using the same wallet address that created the content.',
+          error: 'Decryption failed. This means you are not the creator of this content. Only the wallet address that created the content can decrypt it.',
         },
         { status: 403 }
       );

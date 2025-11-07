@@ -102,7 +102,7 @@ Timestamp: ${new Date(transparency.timestamp).toISOString()}`;
           onClick={copyToClipboard}
           className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded-lg transition-colors"
         >
-          {copied ? '✓ Copied!' : '📋 Copy'}
+          {copied ? 'Copied!' : 'Copy'}
         </button>
       </div>
 
@@ -216,10 +216,10 @@ Timestamp: ${new Date(transparency.timestamp).toISOString()}`;
         </div>
         <p className="text-xs text-stone-600 mt-2">
           {score >= 90 
-            ? '✅ Full transparency - All parameters recorded'
+            ? 'Full transparency - All parameters recorded'
             : score >= 70 
-            ? '⚠️ Good transparency - Most parameters available'
-            : '🔴 Limited transparency - Some parameters missing'}
+            ? 'Good transparency - Most parameters available'
+            : 'Limited transparency - Some parameters missing'}
         </p>
       </div>
     </div>
