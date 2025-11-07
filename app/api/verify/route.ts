@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyProofOnChain, getProvider } from '@/lib/blockchain';
 import { hashBuffer } from '@/lib/crypto';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const { file, combinedHash } = await request.json();

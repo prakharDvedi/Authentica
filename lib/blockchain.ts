@@ -57,21 +57,77 @@ export async function registerProofOnChain(
     if (!signer.provider) {
       throw new Error('Signer does not have a provider. Please connect to a network.');
     }
+    
+    // Verify signer can send transactions (has address)
+    const signerAddress = await signer.getAddress();
+    if (!signerAddress) {
+      throw new Error('Signer does not have an address. Cannot send transactions.');
+    }
+    console.log('📝 Signer address:', signerAddress);
+    
     const code = await signer.provider.getCode(contractAddress);
     if (code === '0x') {
       throw new Error(`No contract found at address ${contractAddress}. Please deploy the contract first.`);
     }
+    console.log('✅ Contract verified at address:', contractAddress);
 
-    // Call smart contract to register proof
-    const tx = await contract.registerProof(
-      proofData.promptHash,
-      proofData.outputHash,
-      proofData.combinedHash,
-      proofData.ipfsLink
-    );
+    // Call smart contract to register proof (this sends a transaction)
+    // Try to estimate gas first, but if it fails, send transaction without gas limit
+    // (MetaMask will estimate it)
+    console.log('📤 Preparing transaction...');
+    console.log('Contract address:', contractAddress);
+    console.log('Function: registerProof');
+    console.log('Parameters:', {
+      promptHash: proofData.promptHash.substring(0, 20) + '...',
+      outputHash: proofData.outputHash.substring(0, 20) + '...',
+      combinedHash: proofData.combinedHash.substring(0, 20) + '...',
+      ipfsLink: proofData.ipfsLink.substring(0, 20) + '...',
+    });
+    
+    let tx;
+    try {
+      // Try gas estimation first
+      const gasEstimate = await contract.registerProof.estimateGas(
+        proofData.promptHash,
+        proofData.outputHash,
+        proofData.combinedHash,
+        proofData.ipfsLink
+      );
+      console.log('✅ Gas estimated:', gasEstimate.toString());
+      
+      // Send with estimated gas + buffer
+      tx = await contract.registerProof(
+        proofData.promptHash,
+        proofData.outputHash,
+        proofData.combinedHash,
+        proofData.ipfsLink,
+        {
+          gasLimit: gasEstimate + (gasEstimate / 10n), // Add 10% buffer
+        }
+      );
+    } catch (estimateError: any) {
+      console.warn('⚠️ Gas estimation failed, sending transaction without gas limit (MetaMask will estimate):', estimateError.message);
+      
+      // If gas estimation fails, send transaction without gas limit
+      // MetaMask will estimate it automatically
+      tx = await contract.registerProof(
+        proofData.promptHash,
+        proofData.outputHash,
+        proofData.combinedHash,
+        proofData.ipfsLink
+      );
+    }
+
+    console.log('✅ Transaction sent! Hash:', tx.hash);
+    console.log('⏳ Waiting for confirmation...');
 
     // Wait for transaction confirmation
     const receipt = await tx.wait();
+    console.log('✅ Transaction confirmed!');
+    console.log('   Block:', receipt.blockNumber);
+    console.log('   Gas used:', receipt.gasUsed.toString());
+    console.log('   Transaction hash:', receipt.hash);
+    
     return receipt.hash;
   } catch (error: any) {
     console.error('Blockchain registration error:', error);
@@ -111,9 +167,36 @@ export async function verifyProofOnChain(
   ipfsLink: string;
 }> {
   try {
+    const contractAddress = getContractAddress();
+    
+    if (!contractAddress || contractAddress === '') {
+      throw new Error('Contract address not set. Please set NEXT_PUBLIC_CONTRACT_ADDRESS in your .env.local file.');
+    }
+    
+    console.log('🔍 Verifying proof:', {
+      combinedHash: combinedHash.substring(0, 20) + '...',
+      contractAddress,
+    });
+    
+    // Check if contract exists at address
+    const code = await provider.getCode(contractAddress);
+    if (code === '0x') {
+      throw new Error(`No contract found at address ${contractAddress}. The contract may not be deployed or the address is incorrect.`);
+    }
+    console.log('✅ Contract found at address:', contractAddress);
+    
     const contract = getContract(provider);
+    
     // Call smart contract to verify proof
+    console.log('📞 Calling verifyProof on contract...');
     const result = await contract.verifyProof(combinedHash);
+    
+    console.log('✅ Verification result:', {
+      exists: result[0],
+      creator: result[1],
+      timestamp: result[2].toString(),
+      ipfsLink: result[3],
+    });
     
     return {
       exists: result[0],
@@ -121,9 +204,23 @@ export async function verifyProofOnChain(
       timestamp: Number(result[2]),
       ipfsLink: result[3],
     };
-  } catch (error) {
-    console.error('Blockchain verification error:', error);
-    throw new Error('Failed to verify proof on blockchain');
+  } catch (error: any) {
+    console.error('❌ Blockchain verification error:', error);
+    
+    // Provide more specific error messages
+    if (error.message?.includes('Contract address not set')) {
+      throw new Error('Contract address not configured. Please set NEXT_PUBLIC_CONTRACT_ADDRESS in .env.local and restart the server.');
+    }
+    
+    if (error.message?.includes('No contract found')) {
+      throw new Error(`Contract not found at address. Please verify the contract is deployed and the address is correct.`);
+    }
+    
+    if (error.code === 'CALL_EXCEPTION' || error.code === 'BAD_DATA') {
+      throw new Error(`Contract call failed. This could mean:\n1. The proof was never registered on blockchain\n2. The contract address is incorrect\n3. The RPC URL is not working\n\nError: ${error.message || 'Unknown error'}`);
+    }
+    
+    throw new Error(`Failed to verify proof on blockchain: ${error.message || 'Unknown error'}`);
   }
 }
 

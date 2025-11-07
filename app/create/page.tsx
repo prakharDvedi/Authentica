@@ -85,7 +85,36 @@ export default function CreatePage() {
       setTransparencyData(data.proof.transparency || null);
 
       let txHash: string | null = null;
-      if (walletClient) {
+      
+      // Small delay to ensure wallet client is ready
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Debug logging - check environment variable
+      const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
+      console.log('🔍 Transaction Debug:', {
+        walletClient: !!walletClient,
+        walletClientType: walletClient ? typeof walletClient : 'null',
+        isConnected,
+        address,
+        chainId,
+        contractAddress: contractAddress || 'NOT SET',
+        contractAddressLength: contractAddress?.length || 0,
+        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL ? 'Set' : 'NOT SET',
+      });
+      
+      if (!contractAddress || contractAddress === '') {
+        alert('Contract address not configured. Please set NEXT_PUBLIC_CONTRACT_ADDRESS in .env.local and restart the server.');
+        throw new Error('Contract address not set');
+      }
+      
+      if (!isConnected || !address) {
+        console.error('❌ Wallet not connected');
+        alert('Wallet not connected. Please connect your wallet using the "Connect Wallet" button and try again.');
+      } else if (!walletClient) {
+        console.error('❌ Wallet client not available');
+        console.error('This might be a timing issue. Try waiting a moment and generating again.');
+        alert('Wallet client not available. Please:\n1. Make sure your wallet is connected\n2. Wait a moment\n3. Try generating again');
+      } else {
         try {
           if (chainId !== 11155111) {
             if (switchNetwork) {
@@ -114,14 +143,20 @@ export default function CreatePage() {
             throw new Error(`Network mismatch! Wallet is on Chain ID ${network.chainId}, but contract is on Sepolia (11155111). Please switch to Sepolia testnet in MetaMask and try again.`);
           }
           
+          console.log('🚀 Starting blockchain registration...');
+          console.log('Contract address:', process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || 'NOT SET');
+          console.log('RPC URL:', process.env.NEXT_PUBLIC_RPC_URL ? 'Set' : 'NOT SET');
+          
           txHash = await registerProofOnChain(signer, {
             promptHash: data.proof.promptHash,
             outputHash: data.proof.outputHash,
             combinedHash: data.proof.combinedHash,
             ipfsLink: data.proof.outputCid,
           });
+          
+          console.log('✅ Transaction successful! Hash:', txHash);
         } catch (error: any) {
-          console.error('Blockchain registration error:', error);
+          console.error('❌ Blockchain registration error:', error);
           console.error('Error details:', {
             message: error.message,
             code: error.code,
@@ -131,12 +166,29 @@ export default function CreatePage() {
             rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'not set',
           });
           
-          if (error.message?.includes('network') || error.message?.includes('Chain ID') || error.code === 'NETWORK_ERROR') {
-            alert(error.message || 'Please switch to Sepolia testnet in MetaMask:\n1. Open MetaMask\n2. Click network dropdown\n3. Select "Sepolia"\n4. Try again');
+          // Show user-friendly error message
+          let errorMessage = 'Failed to register proof on blockchain. ';
+          
+          if (error.message?.includes('Contract address not set')) {
+            errorMessage += 'Please set NEXT_PUBLIC_CONTRACT_ADDRESS in your .env.local file.';
+          } else if (error.message?.includes('network') || error.message?.includes('Chain ID')) {
+            errorMessage = error.message || 'Please switch to Sepolia testnet in MetaMask.';
+          } else if (error.message?.includes('No contract found')) {
+            errorMessage += 'Contract not deployed. Please deploy the contract first.';
+          } else if (error.code === 'ACTION_REJECTED' || error.message?.includes('rejected')) {
+            errorMessage = 'Transaction was rejected. Please try again.';
+          } else {
+            errorMessage += error.message || 'Unknown error occurred.';
           }
           
-          console.warn('Blockchain registration failed, continuing without it:', error.message);
+          alert(errorMessage);
+          console.warn('Blockchain registration failed:', error.message);
         }
+      }
+      
+      // Log final status
+      if (!txHash) {
+        console.warn('⚠️ Transaction hash is null - transaction was not sent');
       }
 
       const cert = {

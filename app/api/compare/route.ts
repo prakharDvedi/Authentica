@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import axios from 'axios';
+import { detectSteganography } from '@/lib/steganography';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -64,73 +65,161 @@ function compareHistograms(buffer1: Buffer, buffer2: Buffer): number {
   }
 }
 
-// Simple image comparison without CLIP (fallback method)
+// Improved image comparison using multiple techniques
 async function compareImagesSimple(buffer1: Buffer, buffer2: Buffer): Promise<number> {
   try {
-    // If exact match, return 1.0
+    // Step 1: Exact byte match = 100% identical
     if (buffer1.equals(buffer2)) {
+      console.log('✅ Exact byte match - 100% identical');
       return 1.0;
     }
     
-    // Compare file sizes (similar sizes indicate similar images)
+    // Step 2: Compare file sizes
     const size1 = buffer1.length;
     const size2 = buffer2.length;
     const sizeRatio = Math.min(size1, size2) / Math.max(size1, size2);
     
-    // If sizes are very similar (>90%), likely same image with minor edits
-    if (sizeRatio > 0.9) {
-      // Compare image headers (format, dimensions, etc.)
-      const header1 = buffer1.slice(0, 200);
-      const header2 = buffer2.slice(0, 200);
-      
-      let matchingBytes = 0;
-      for (let i = 0; i < Math.min(header1.length, header2.length); i++) {
-        if (Math.abs(header1[i] - header2[i]) < 5) { // Allow small differences
-          matchingBytes++;
-        }
+    // Step 3: Compare image structure (headers, chunks, etc.)
+    // For PNG: Compare IHDR chunk (dimensions, color type, etc.)
+    // For JPEG: Compare SOF markers (dimensions, quality)
+    
+    let structureSimilarity = 0;
+    let pixelDataSimilarity = 0;
+    
+    // Compare first 500 bytes (image headers and initial data)
+    const headerSize = Math.min(500, Math.min(buffer1.length, buffer2.length));
+    const header1 = buffer1.slice(0, headerSize);
+    const header2 = buffer2.slice(0, headerSize);
+    
+    let exactMatches = 0;
+    let nearMatches = 0;
+    for (let i = 0; i < headerSize; i++) {
+      if (header1[i] === header2[i]) {
+        exactMatches++;
+      } else if (Math.abs(header1[i] - header2[i]) <= 2) {
+        nearMatches++;
       }
-      
-      const headerSimilarity = matchingBytes / Math.min(header1.length, header2.length);
-      
-      // If headers are similar and sizes match, high similarity
-      if (headerSimilarity > 0.6) {
-        return 0.85 + (headerSimilarity * 0.1); // 85-95% for edited images
-      }
-      
-      // Still similar if sizes match
-      return 0.75 + (sizeRatio * 0.1); // 75-85% for similar sized images
     }
     
-    // Compare middle sections (image data)
-    const mid1 = buffer1.slice(Math.floor(buffer1.length * 0.3), Math.floor(buffer1.length * 0.7));
-    const mid2 = buffer2.slice(Math.floor(buffer2.length * 0.3), Math.floor(buffer2.length * 0.7));
+    // Structure similarity (headers should be very similar for same image)
+    structureSimilarity = (exactMatches + nearMatches * 0.5) / headerSize;
     
-    let midSimilarity = 0;
-    if (mid1.length > 0 && mid2.length > 0) {
-      const minLength = Math.min(mid1.length, mid2.length);
-      let matching = 0;
-      for (let i = 0; i < minLength; i += 10) { // Sample every 10th byte
-        if (Math.abs(mid1[i] - mid2[i]) < 10) { // Allow small differences
-          matching++;
+    // Step 4: Compare image data chunks (sample from multiple sections)
+    // More sample points to catch tampering better
+    const samplePoints = [
+      { start: 0.05, end: 0.15 },   // Very early data
+      { start: 0.15, end: 0.25 },   // Early data
+      { start: 0.30, end: 0.40 },   // Mid-early
+      { start: 0.45, end: 0.55 },   // Middle
+      { start: 0.60, end: 0.70 },   // Mid-late
+      { start: 0.75, end: 0.85 },   // Late data
+      { start: 0.85, end: 0.95 },   // Very late data
+    ];
+    
+    let totalDataSimilarity = 0;
+    for (const point of samplePoints) {
+      const start1 = Math.floor(buffer1.length * point.start);
+      const end1 = Math.floor(buffer1.length * point.end);
+      const start2 = Math.floor(buffer2.length * point.start);
+      const end2 = Math.floor(buffer2.length * point.end);
+      
+      const chunk1 = buffer1.slice(start1, end1);
+      const chunk2 = buffer2.slice(start2, end2);
+      const minChunkSize = Math.min(chunk1.length, chunk2.length);
+      
+      if (minChunkSize > 0) {
+        let exactMatches = 0;
+        let nearMatches = 0;
+        let totalSamples = 0;
+        
+        // Sample more frequently to catch differences (every 3rd byte instead of 5th)
+        for (let i = 0; i < minChunkSize; i += 3) {
+          const diff = Math.abs(chunk1[i] - chunk2[i]);
+          totalSamples++;
+          
+          if (diff === 0) {
+            exactMatches++;
+          } else if (diff <= 2) {
+            nearMatches += 0.9; // Very close (compression artifacts)
+          } else if (diff <= 5) {
+            nearMatches += 0.6; // Close but different
+          } else if (diff <= 15) {
+            nearMatches += 0.3; // Somewhat similar
+          } else {
+            // Significant difference - count as mismatch
+            nearMatches += 0.0;
+          }
         }
+        
+        // Calculate chunk similarity (exact matches are weighted higher)
+        const chunkSimilarity = (exactMatches + nearMatches) / totalSamples;
+        totalDataSimilarity += chunkSimilarity;
       }
-      midSimilarity = matching / (minLength / 10);
     }
+    pixelDataSimilarity = totalDataSimilarity / samplePoints.length;
     
-    // Use histogram comparison
+    // Step 5: Histogram comparison (color distribution)
     const histSimilarity = compareHistograms(buffer1, buffer2);
     
-    // Combine all metrics (weighted average)
-    const similarity = (sizeRatio * 0.3) + (midSimilarity * 0.4) + (histSimilarity * 0.3);
+    // Step 6: Calculate final similarity
+    // Weight the metrics based on importance - pixel data is most important for tamper detection
+    let similarity = (
+      structureSimilarity * 0.20 +      // Headers/structure (20%)
+      pixelDataSimilarity * 0.50 +     // Actual image data (50% - most important!)
+      histSimilarity * 0.20 +           // Color distribution (20%)
+      sizeRatio * 0.10                  // File size (10%)
+    );
     
-    // For edited images (brush strokes, filters), we should get 70-90% similarity
-    // Adjust thresholds to be more lenient
-    if (sizeRatio > 0.7) {
-      // If sizes are reasonably similar, boost similarity
-      return Math.min(0.95, Math.max(0.6, similarity + 0.2));
+    // Step 7: Detect if images are truly identical vs. tampered
+    // For truly identical images: ALL metrics must be very high
+    const isLikelyIdentical = 
+      structureSimilarity > 0.99 && 
+      pixelDataSimilarity > 0.99 && 
+      sizeRatio > 0.99 &&
+      histSimilarity > 0.98;
+    
+    const isNearIdentical = 
+      structureSimilarity > 0.97 && 
+      pixelDataSimilarity > 0.97 && 
+      sizeRatio > 0.98 &&
+      histSimilarity > 0.95;
+    
+    // Calculate difference score (how much the images differ)
+    const differenceScore = (
+      (1 - structureSimilarity) * 0.20 +
+      (1 - pixelDataSimilarity) * 0.50 +
+      (1 - histSimilarity) * 0.20 +
+      (1 - sizeRatio) * 0.10
+    );
+    
+    if (isLikelyIdentical) {
+      // Truly identical - allow 99-100%
+      similarity = Math.max(similarity, 0.99);
+      console.log('✅ Identical image detected - 99-100% match');
+    } else if (isNearIdentical && differenceScore < 0.02) {
+      // Very close but might have minor differences - 97-99%
+      similarity = Math.min(0.99, Math.max(similarity, 0.97));
+      console.log('✅ Near-identical image detected - 97-99% match');
+    } else {
+      // Has differences - apply penalty based on difference score
+      if (differenceScore > 0.01) {
+        // There are measurable differences - reduce similarity
+        // The more differences, the more we reduce
+        const penalty = Math.min(0.10, differenceScore * 5); // Max 10% penalty
+        similarity = Math.max(0.0, similarity - penalty);
+        console.log(`⚠️ Differences detected (${(differenceScore * 100).toFixed(2)}% diff) - similarity reduced to ${(similarity * 100).toFixed(2)}%`);
+      }
+      
+      // If pixel data similarity is low but overall similarity is high, it's likely tampered
+      if (pixelDataSimilarity < 0.95 && similarity > 0.90) {
+        // Pixel data shows differences but other metrics are high - likely tampered
+        similarity = Math.min(0.95, similarity * 0.95);
+        console.log('⚠️ Pixel data differences detected - likely tampered');
+      }
     }
     
-    return Math.min(0.95, Math.max(0.0, similarity));
+    // Final similarity (0-100%)
+    return Math.min(1.0, Math.max(0.0, similarity));
   } catch (error) {
     console.error('Simple comparison error:', error);
     return 0.5; // Unknown similarity
@@ -209,6 +298,44 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await uploadedImage.arrayBuffer();
     const uploadedBuffer = Buffer.from(arrayBuffer);
 
+    // Perform steganography detection on uploaded image
+    // This detects hidden data embedded in pixels (LSB steganography)
+    let steganographyResult = null;
+    try {
+      console.log('🔍 Running steganography detection...');
+      console.log('📊 Image size:', uploadedBuffer.length, 'bytes');
+      const stegCheck = await detectSteganography(uploadedBuffer);
+      
+      console.log('📊 Steganography check result:', {
+        suspicious: stegCheck.suspicious,
+        confidence: stegCheck.confidence,
+        method: stegCheck.method,
+        indicators: stegCheck.indicators,
+      });
+      
+      if (stegCheck.suspicious) {
+        steganographyResult = {
+          suspicious: true,
+          confidence: stegCheck.confidence,
+          method: stegCheck.method,
+          details: stegCheck.details,
+          indicators: stegCheck.indicators,
+        };
+        console.warn('⚠️ STEGANOGRAPHY DETECTED:', stegCheck);
+      } else {
+        console.log('✅ No steganography detected');
+        steganographyResult = {
+          suspicious: false,
+          confidence: 0,
+          method: 'none',
+          details: 'No steganography detected',
+        };
+      }
+    } catch (error) {
+      console.error('❌ Steganography detection failed:', error);
+      // Don't fail the entire comparison if steganography check fails
+    }
+
     // Try to get CLIP embeddings
     let uploadedEmbedding: number[] | null = null;
     let originalEmbedding: number[] | null = null;
@@ -252,7 +379,18 @@ export async function POST(request: NextRequest) {
           const originalBuffer = Buffer.from(originalImageResponse.data);
           
           // Simple image comparison using basic metrics
+          console.log('🔍 Comparing images:', {
+            uploadedSize: uploadedBuffer.length,
+            originalSize: originalBuffer.length,
+            exactMatch: uploadedBuffer.equals(originalBuffer),
+            sizeDiff: Math.abs(uploadedBuffer.length - originalBuffer.length),
+          });
           similarity = await compareImagesSimple(uploadedBuffer, originalBuffer);
+          console.log('✅ Comparison result:', {
+            similarity: (similarity * 100).toFixed(2) + '%',
+            method: 'simple',
+            verdict: similarity >= 0.99 ? 'IDENTICAL' : similarity >= 0.95 ? 'NEAR_IDENTICAL' : similarity >= 0.85 ? 'MINOR_EDITS' : 'TAMPERED',
+          });
           method = 'simple';
         } catch (error) {
           console.error('Image comparison error:', error);
@@ -300,15 +438,41 @@ export async function POST(request: NextRequest) {
       verdict = 'unknown';
     }
 
+    // If steganography is detected, adjust verdict and add warning
+    let finalVerdict = verdict;
+    let finalMessage = getVerdictMessage(verdict, similarity, method);
+    let steganographyWarning = null;
+    
+    if (steganographyResult?.suspicious) {
+      // Steganography detected - mark as suspicious
+      if (verdict === 'authentic') {
+        finalVerdict = 'suspicious';
+        finalMessage = `⚠️ WARNING: Steganography detected! ${finalMessage} However, hidden data was found embedded in pixels. This image may have been tampered with to bypass detection.`;
+      } else {
+        finalMessage = `⚠️ STEGANOGRAPHY DETECTED: ${steganographyResult.details}. ${finalMessage}`;
+      }
+      steganographyWarning = steganographyResult.details;
+      
+      // Reduce similarity score if steganography detected
+      // Steganography suggests tampering attempt
+      similarity = Math.max(0, similarity - (steganographyResult.confidence * 0.1));
+    }
+
     return NextResponse.json({
       success: true,
       similarity: Math.round(similarity * 10000) / 100, // Percentage (0-100)
-      verdict,
+      verdict: finalVerdict,
       method,
-      message: getVerdictMessage(verdict, similarity, method),
+      message: finalMessage,
       warning: method === 'unknown' || method === 'simple' 
         ? 'Using basic comparison. Enable CLIP service for better accuracy.' 
         : undefined,
+      steganography: steganographyResult ? {
+        suspicious: steganographyResult.suspicious,
+        confidence: Math.round(steganographyResult.confidence * 100),
+        method: steganographyResult.method,
+        details: steganographyResult.details,
+      } : null,
     });
   } catch (error: any) {
     console.error('Comparison error:', error);
@@ -332,6 +496,8 @@ function getVerdictMessage(verdict: string, similarity: number, method?: string)
       return `Modified - Significant changes detected (${percentage}% match)${methodNote}`;
     case 'different':
       return `Different artwork - Not the same image (${percentage}% match)${methodNote}`;
+    case 'suspicious':
+      return `⚠️ SUSPICIOUS: Steganography detected! Image may contain hidden data (${percentage}% match)${methodNote}`;
     case 'unknown':
       return `Unable to determine similarity accurately. Please enable CLIP service for better results.`;
     default:

@@ -25,8 +25,11 @@ export async function POST(request: NextRequest) {
         const ipfsModule = await import('@/lib/ipfs');
         uploadToIpfs = ipfsModule.uploadToIpfs;
         uploadMetadataToIpfs = ipfsModule.uploadMetadataToIpfs;
+        console.log('✅ IPFS module loaded successfully');
+        console.log('IPFS_API_URL:', process.env.IPFS_API_URL ? 'Set' : 'Not set');
+        console.log('IPFS_AUTH:', process.env.IPFS_AUTH ? 'Set (length: ' + process.env.IPFS_AUTH.length + ')' : 'Not set');
       } catch (error: any) {
-        console.error('Failed to import IPFS module:', error);
+        console.error('❌ Failed to import IPFS module:', error);
       }
     }
 
@@ -97,12 +100,16 @@ export async function POST(request: NextRequest) {
     let outputCid: string;
     if (uploadToIpfs) {
       try {
+        console.log('📤 Uploading to IPFS...');
         outputCid = await uploadToIpfs(outputBuffer, `output-${timestamp}.png`);
+        console.log('✅ IPFS upload successful:', outputCid);
       } catch (error: any) {
-        console.error('IPFS upload error:', error);
+        console.error('❌ IPFS upload error:', error);
+        console.error('Error details:', error.message, error.response?.data);
         outputCid = 'ipfs-upload-failed';
       }
     } else {
+      console.warn('⚠️ IPFS upload function not available');
       outputCid = 'ipfs-not-available';
     }
     const outputHash = hashBuffer(outputBuffer);
@@ -123,12 +130,16 @@ export async function POST(request: NextRequest) {
     let metadataCid: string;
     if (uploadMetadataToIpfs) {
       try {
+        console.log('📤 Uploading metadata to IPFS...');
         metadataCid = await uploadMetadataToIpfs(metadata);
+        console.log('✅ IPFS metadata upload successful:', metadataCid);
       } catch (error: any) {
-        console.error('IPFS metadata upload error:', error);
+        console.error('❌ IPFS metadata upload error:', error);
+        console.error('Error details:', error.message, error.response?.data);
         metadataCid = 'ipfs-upload-failed';
       }
     } else {
+      console.warn('⚠️ IPFS metadata upload function not available');
       metadataCid = 'ipfs-not-available';
     }
 

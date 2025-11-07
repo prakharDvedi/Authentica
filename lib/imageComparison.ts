@@ -52,32 +52,47 @@ export async function compareImagesClient(
     const data1 = ctx1.getImageData(0, 0, compareWidth, compareHeight);
     const data2 = ctx2.getImageData(0, 0, compareWidth, compareHeight);
 
-    // Compare pixels
-    let matchingPixels = 0;
+    // Compare pixels - use more accurate comparison for identical images
+    let exactMatches = 0;
+    let nearMatches = 0;
     let totalPixels = 0;
 
-    for (let i = 0; i < data1.data.length; i += 16) { // Sample every 4th pixel (RGBA = 4 bytes)
+    // Compare every pixel (not just sampling) for better accuracy
+    for (let i = 0; i < data1.data.length; i += 4) { // Every pixel (RGBA = 4 bytes)
       const r1 = data1.data[i];
       const g1 = data1.data[i + 1];
       const b1 = data1.data[i + 2];
+      const a1 = data1.data[i + 3];
+      
       const r2 = data2.data[i];
       const g2 = data2.data[i + 1];
       const b2 = data2.data[i + 2];
+      const a2 = data2.data[i + 3];
 
-      // Calculate color distance (Euclidean distance in RGB space)
-      const colorDistance = Math.sqrt(
-        Math.pow(r1 - r2, 2) + Math.pow(g1 - g2, 2) + Math.pow(b1 - b2, 2)
-      );
-
-      // If colors are similar (within threshold), count as match
-      // Threshold of 30 allows for minor color variations
-      if (colorDistance < 30) {
-        matchingPixels++;
+      // Exact match (identical pixel)
+      if (r1 === r2 && g1 === g2 && b1 === b2 && a1 === a2) {
+        exactMatches++;
+      } else {
+        // Calculate color distance (Euclidean distance in RGB space)
+        const colorDistance = Math.sqrt(
+          Math.pow(r1 - r2, 2) + Math.pow(g1 - g2, 2) + Math.pow(b1 - b2, 2)
+        );
+        
+        // For identical images, pixels should be very close (within 5 units)
+        // For edited images, allow more variation (30 units)
+        if (colorDistance < 5) {
+          nearMatches += 0.95; // Very close, almost identical
+        } else if (colorDistance < 15) {
+          nearMatches += 0.8; // Close
+        } else if (colorDistance < 30) {
+          nearMatches += 0.5; // Somewhat similar
+        }
       }
       totalPixels++;
     }
 
-    const pixelSimilarity = matchingPixels / totalPixels;
+    // Calculate pixel similarity (exact matches count as 1.0, near matches as partial)
+    const pixelSimilarity = (exactMatches + nearMatches) / totalPixels;
 
     // Calculate histogram similarity
     const hist1 = calculateHistogram(data1);
@@ -87,8 +102,16 @@ export async function compareImagesClient(
     // Combine metrics (weighted average)
     const similarity = (pixelSimilarity * 0.6) + (histogramSimilarity * 0.4);
 
+    // For identical images, allow 100% similarity (don't cap at 95%)
+    // If pixel similarity is very high (>95%), it's likely identical
+    let finalSimilarity = similarity;
+    if (pixelSimilarity > 0.95 && histogramSimilarity > 0.95) {
+      // Identical or near-identical image
+      finalSimilarity = Math.min(1.0, similarity * 1.02); // Boost slightly, cap at 100%
+    }
+
     return {
-      similarity: Math.min(0.95, Math.max(0.0, similarity)),
+      similarity: Math.min(1.0, Math.max(0.0, finalSimilarity)),
       method: 'canvas',
     };
   } catch (error) {

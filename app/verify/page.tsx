@@ -53,19 +53,30 @@ function VerifyContent() {
     setSimilarityResult(null);
 
     try {
+      console.log('🔍 Starting verification for hash:', hashValue);
+      console.log('Contract address:', process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || 'NOT SET');
+      console.log('RPC URL:', process.env.NEXT_PUBLIC_RPC_URL ? 'Set' : 'NOT SET');
+      
       const provider = getProvider();
       const result = await verifyProofOnChain(provider, hashValue);
 
       if (result.exists) {
+        console.log('✅ Proof verified!', result);
         setVerificationResult(result);
         // Try to fetch metadata from IPFS using the hash
         await fetchMetadataFromIpfs(hashValue);
       } else {
-        setError('Proof not found on blockchain. This artwork may not be registered.');
+        console.warn('⚠️ Proof exists but exists flag is false');
+        setError('Proof not found on blockchain. This artwork may not be registered. The transaction may have failed or the hash is incorrect.');
       }
     } catch (error: any) {
-      console.error('Verification error:', error);
-      setError(error.message || 'Failed to verify proof');
+      console.error('❌ Verification error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        contractAddress: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || 'not set',
+      });
+      setError(error.message || 'Failed to verify proof on blockchain');
     } finally {
       setLoading(false);
     }
@@ -95,59 +106,8 @@ function VerifyContent() {
     setSimilarityResult(null);
 
     try {
-      // Try client-side comparison first (more accurate for edited images)
-      try {
-        const { compareImagesClient } = await import('@/lib/imageComparison');
-        const originalImageUrl = `https://gateway.pinata.cloud/ipfs/${verificationResult.ipfsLink}`;
-        const uploadedImageUrl = imagePreview || '';
-        
-        if (uploadedImageUrl) {
-          const clientResult = await compareImagesClient(originalImageUrl, uploadedImageUrl);
-          
-          // If client-side comparison gives good results, use it
-          if (clientResult.similarity > 0.3) {
-            // Determine verdict
-            let verdict = 'different';
-            if (clientResult.similarity >= 0.90) {
-              verdict = 'authentic';
-            } else if (clientResult.similarity >= 0.70) {
-              verdict = 'minor_edits';
-            } else if (clientResult.similarity >= 0.50) {
-              verdict = 'modified';
-            }
-            
-            const percentage = (clientResult.similarity * 100).toFixed(1);
-            let message = '';
-            switch (verdict) {
-              case 'authentic':
-                message = `Authentic - Original artwork (${percentage}% match)`;
-                break;
-              case 'minor_edits':
-                message = `Minor edits detected - Cropped, filtered, or color adjusted (${percentage}% match)`;
-                break;
-              case 'modified':
-                message = `Modified - Significant changes detected (${percentage}% match)`;
-                break;
-              default:
-                message = `Different artwork - Not the same image (${percentage}% match)`;
-            }
-            
-            setSimilarityResult({
-              success: true,
-              similarity: parseFloat(percentage),
-              verdict,
-              method: 'canvas',
-              message,
-            });
-            setComparing(false);
-            return;
-          }
-        }
-      } catch (clientError) {
-        console.log('Client-side comparison failed, using server-side:', clientError);
-      }
-
-      // Fallback to server-side comparison
+      // Always use server-side comparison (includes steganography detection)
+      // Client-side comparison doesn't include steganography check, so we skip it
       const formData = new FormData();
       formData.append('image', uploadedImage);
       formData.append('originalImageUrl', `https://gateway.pinata.cloud/ipfs/${verificationResult.ipfsLink}`);
@@ -157,6 +117,7 @@ function VerifyContent() {
         formData.append('originalEmbeddingHash', verificationResult.clipEmbeddingHash);
       }
 
+      console.log('📤 Sending image to server for comparison and steganography detection...');
       const response = await fetch('/api/compare', {
         method: 'POST',
         body: formData,
@@ -167,6 +128,12 @@ function VerifyContent() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to compare images');
       }
+
+      console.log('📥 Server response:', {
+        similarity: data.similarity,
+        verdict: data.verdict,
+        steganography: data.steganography,
+      });
 
       setSimilarityResult(data);
     } catch (error: any) {
@@ -461,6 +428,38 @@ function VerifyContent() {
                   </p>
                 </div>
               </div>
+
+              {/* Steganography Warning */}
+              {similarityResult.steganography?.suspicious && (
+                <div className="bg-red-100/90 border-2 border-red-400 rounded-lg p-6 mt-4">
+                  <div className="flex items-start gap-3">
+                    <span className="text-3xl">🚨</span>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-red-800 text-lg mb-2">
+                        ⚠️ STEGANOGRAPHY DETECTED
+                      </h4>
+                      <p className="text-red-700 mb-2">
+                        {similarityResult.steganography.details}
+                      </p>
+                      <div className="mt-3 space-y-1 text-sm">
+                        <p className="text-red-600">
+                          <strong>Detection Method:</strong> {similarityResult.steganography.method}
+                        </p>
+                        <p className="text-red-600">
+                          <strong>Confidence:</strong> {similarityResult.steganography.confidence}%
+                        </p>
+                      </div>
+                      <div className="mt-4 bg-red-50 p-3 rounded border border-red-200">
+                        <p className="text-sm text-red-800">
+                          <strong>⚠️ Security Warning:</strong> Hidden data was found embedded in this image's pixels. 
+                          This may indicate an attempt to bypass tamper detection or hide malicious content. 
+                          Proceed with caution.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="bg-blue-50/80 p-4 rounded-lg border border-blue-200/50 mt-4">
                 <p className="text-sm text-blue-800">
