@@ -13,6 +13,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useAccount } from 'wagmi';
 import { verifyProofOnChain, getProvider } from '@/lib/blockchain';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
@@ -21,6 +22,7 @@ import TransparencyCard from '@/components/TransparencyCard';
 function VerifyContent() {
   const searchParams = useSearchParams();
   const hashFromUrl = searchParams.get('hash');
+  const { address, isConnected } = useAccount();
   
   const [hash, setHash] = useState(hashFromUrl || '');
   const [loading, setLoading] = useState(false);
@@ -32,6 +34,8 @@ function VerifyContent() {
   const [similarityResult, setSimilarityResult] = useState<any>(null);
   const [metadata, setMetadata] = useState<any>(null);
   const [loadingMetadata, setLoadingMetadata] = useState(false);
+  const [decrypting, setDecrypting] = useState(false);
+  const [decryptedContent, setDecryptedContent] = useState<string | null>(null);
 
   useEffect(() => {
     if (hashFromUrl) {
@@ -92,6 +96,50 @@ function VerifyContent() {
       };
       reader.readAsDataURL(file);
       setSimilarityResult(null);
+    }
+  };
+
+  const handleDecryptContent = async () => {
+    if (!verificationResult || !metadata?.encrypted || !address) {
+      setError('Cannot decrypt: Missing verification result, metadata, or wallet connection');
+      return;
+    }
+
+    // Check if user is the creator
+    if (address.toLowerCase() !== verificationResult.creator?.toLowerCase()) {
+      setError('Only the creator can decrypt this content. Please connect with the creator\'s wallet.');
+      return;
+    }
+
+    setDecrypting(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/decrypt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ipfsCid: verificationResult.ipfsLink,
+          userAddress: address,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Decryption failed');
+      }
+
+      // Set decrypted content as data URL
+      const contentType = metadata.type === 'image' ? 'image/png' : 'audio/mpeg';
+      setDecryptedContent(`data:${contentType};base64,${data.decryptedContent}`);
+    } catch (error: any) {
+      console.error('Decryption error:', error);
+      setError(`Failed to decrypt content: ${error.message}`);
+    } finally {
+      setDecrypting(false);
     }
   };
 
@@ -321,17 +369,76 @@ function VerifyContent() {
 
               <div>
                 <h3 className="font-semibold text-stone-800 mb-2">IPFS Link</h3>
-                <a
-                  href={`https://gateway.pinata.cloud/ipfs/${verificationResult.ipfsLink}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-green-700 hover:text-green-800 hover:underline text-sm break-all"
-                >
-                  ipfs://{verificationResult.ipfsLink}
-                </a>
-                <p className="text-xs text-stone-600 mt-1">
-                  (Using Pinata gateway - faster and more reliable)
-                </p>
+                {metadata?.encrypted ? (
+                  // Content is encrypted - only show if user is the creator
+                  address?.toLowerCase() === verificationResult.creator?.toLowerCase() ? (
+                    <>
+                      <a
+                        href={`https://gateway.pinata.cloud/ipfs/${verificationResult.ipfsLink}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-green-700 hover:text-green-800 hover:underline text-sm break-all"
+                      >
+                        ipfs://{verificationResult.ipfsLink}
+                      </a>
+                      <p className="text-xs text-green-600 mt-1 font-semibold">
+                        🔐 Encrypted - Only you (creator) can access this content
+                      </p>
+                      {!decryptedContent && (
+                        <button
+                          onClick={handleDecryptContent}
+                          disabled={decrypting || !isConnected}
+                          className="mt-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:bg-stone-300 disabled:text-stone-500 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {decrypting ? 'Decrypting...' : '🔓 Decrypt & View Content'}
+                        </button>
+                      )}
+                      {decryptedContent && (
+                        <div className="mt-4">
+                          {metadata?.type === 'image' ? (
+                            <img
+                              src={decryptedContent}
+                              alt="Decrypted content"
+                              className="w-full rounded-lg border border-green-300"
+                            />
+                          ) : (
+                            <audio
+                              controls
+                              src={decryptedContent}
+                              className="w-full rounded-lg"
+                            >
+                              Your browser does not support the audio element.
+                            </audio>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs text-stone-500 italic">
+                        🔒 Content is encrypted - IPFS link hidden
+                      </p>
+                      <p className="text-xs text-stone-600 mt-1">
+                        Only the creator can access this encrypted content. Connect with the creator's wallet to decrypt.
+                      </p>
+                    </>
+                  )
+                ) : (
+                  // Not encrypted - show link normally
+                  <>
+                    <a
+                      href={`https://gateway.pinata.cloud/ipfs/${verificationResult.ipfsLink}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-700 hover:text-green-800 hover:underline text-sm break-all"
+                    >
+                      ipfs://{verificationResult.ipfsLink}
+                    </a>
+                    <p className="text-xs text-stone-600 mt-1">
+                      (Using Pinata gateway - faster and more reliable)
+                    </p>
+                  </>
+                )}
               </div>
 
               <div className="bg-green-50/80 p-4 rounded-lg border border-green-200/50">

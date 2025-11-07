@@ -35,7 +35,9 @@ export default function CreatePage() {
   }, []);
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [contentType, setContentType] = useState<'image' | 'music'>('image');
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
   const [proof, setProof] = useState<any>(null);
   const [certificate, setCertificate] = useState<any>(null);
   const [faceHash, setFaceHash] = useState<string | null>(null);
@@ -50,6 +52,7 @@ export default function CreatePage() {
 
     setLoading(true);
     setGeneratedImage(null);
+    setGeneratedAudio(null);
     setProof(null);
     setCertificate(null);
 
@@ -62,14 +65,14 @@ export default function CreatePage() {
         body: JSON.stringify({
           prompt,
           userAddress: address,
-          type: 'image',
+          type: contentType,
           faceHash: faceHash || undefined,
           faceTimestamp: faceTimestamp || undefined,
         }),
       });
 
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
+      const responseContentType = response.headers.get('content-type');
+      if (!responseContentType || !responseContentType.includes('application/json')) {
         const text = await response.text();
         throw new Error(`API returned non-JSON response: ${text.substring(0, 200)}`);
       }
@@ -80,7 +83,15 @@ export default function CreatePage() {
         throw new Error(data.error || 'Generation failed');
       }
 
-      setGeneratedImage(`data:image/png;base64,${data.proof.outputBuffer}`);
+      // Set generated content based on type
+      if (contentType === 'image') {
+        setGeneratedImage(`data:image/png;base64,${data.proof.outputBuffer}`);
+      } else if (contentType === 'music') {
+        // BeatOven returns MP3, dummy audio returns WAV
+        const audioType = data.proof.transparency?.provider === 'beatoven' ? 'audio/mpeg' : 'audio/wav';
+        setGeneratedAudio(`data:${audioType};base64,${data.proof.outputBuffer}`);
+      }
+      
       setProof(data.proof);
       setTransparencyData(data.proof.transparency || null);
 
@@ -205,6 +216,7 @@ export default function CreatePage() {
         faceHash: data.proof.faceHash || null,
         faceVerified: !!data.proof.faceHash,
         transparency: data.proof.transparency || null,
+        encrypted: true, // All content is now encrypted by default
       };
 
       setCertificate(cert);
@@ -252,13 +264,60 @@ export default function CreatePage() {
           ) : (
             <>
               <div className="bg-cream-100/80 rounded-xl shadow-lg p-6 mb-6 border border-green-200/50 backdrop-blur-sm">
+                {/* Content Type Selector */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-stone-800 mb-2">
+                    Content Type
+                  </label>
+                  <div className="flex gap-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setContentType('image');
+                        setGeneratedImage(null);
+                        setGeneratedAudio(null);
+                        setProof(null);
+                        setCertificate(null);
+                      }}
+                      className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                        contentType === 'image'
+                          ? 'bg-green-600 text-white shadow-md scale-105'
+                          : 'bg-white/80 text-stone-700 hover:bg-green-50 border border-green-300'
+                      }`}
+                    >
+                      🖼️ Image
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setContentType('music');
+                        setGeneratedImage(null);
+                        setGeneratedAudio(null);
+                        setProof(null);
+                        setCertificate(null);
+                      }}
+                      className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                        contentType === 'music'
+                          ? 'bg-green-600 text-white shadow-md scale-105'
+                          : 'bg-white/80 text-stone-700 hover:bg-green-50 border border-green-300'
+                      }`}
+                    >
+                      🎵 Music
+                    </button>
+                  </div>
+                </div>
+
                 <label className="block text-sm font-medium text-stone-800 mb-2">
                   Enter your prompt
                 </label>
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="A futuristic cityscape at sunset with flying cars..."
+                  placeholder={
+                    contentType === 'image'
+                      ? 'A futuristic cityscape at sunset with flying cars...'
+                      : 'Upbeat electronic dance music with synthesizers and drums, 120 BPM...'
+                  }
                   className="w-full px-4 py-3 bg-white/80 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-stone-800 placeholder-stone-500"
                   rows={4}
                 />
@@ -281,21 +340,40 @@ export default function CreatePage() {
                   disabled={loading || !prompt.trim()}
                   className="mt-4 w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:bg-stone-300 disabled:text-stone-500 disabled:cursor-not-allowed transition-colors"
                 >
-                  {loading ? 'Generating...' : 'Generate & Create Proof'}
+                  {loading 
+                    ? (contentType === 'image' ? 'Generating Image...' : 'Generating Music...')
+                    : contentType === 'image' 
+                      ? 'Generate Image & Create Proof'
+                      : 'Generate Music & Create Proof'}
                 </button>
               </div>
 
-              {generatedImage && (
+              {(generatedImage || generatedAudio) && (
                 <div className="space-y-6 mb-6">
                   <div className="bg-cream-100/80 rounded-xl shadow-lg p-6 border border-green-200/50 backdrop-blur-sm">
-                    <h2 className="text-2xl font-bold mb-4 text-stone-800">Generated Artwork</h2>
+                    <h2 className="text-2xl font-bold mb-4 text-stone-800">
+                      {contentType === 'image' ? 'Generated Artwork' : 'Generated Music'}
+                    </h2>
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>
-                        <img
-                          src={generatedImage}
-                          alt="Generated artwork"
-                          className="w-full rounded-lg mb-4"
-                        />
+                        {contentType === 'image' && generatedImage && (
+                          <img
+                            src={generatedImage}
+                            alt="Generated artwork"
+                            className="w-full rounded-lg mb-4"
+                          />
+                        )}
+                        {contentType === 'music' && generatedAudio && (
+                          <div className="mb-4">
+                            <audio
+                              controls
+                              src={generatedAudio}
+                              className="w-full rounded-lg"
+                            >
+                              Your browser does not support the audio element.
+                            </audio>
+                          </div>
+                        )}
                         {proof && (
                           <div className="bg-white/80 p-4 rounded-lg border border-green-200/50">
                             <p className="text-sm text-stone-700">
@@ -383,17 +461,48 @@ export default function CreatePage() {
                       <h3 className="font-semibold text-stone-800 mb-2">
                         IPFS Link
                       </h3>
-                      <a
-                        href={`https://gateway.pinata.cloud/ipfs/${certificate.ipfsLink}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-green-700 hover:text-green-800 hover:underline break-all"
-                      >
-                        ipfs://{certificate.ipfsLink}
-                      </a>
-                      <p className="text-xs text-stone-600 mt-1">
-                        (Using Pinata gateway - faster and more reliable)
-                      </p>
+                      {certificate.encrypted ? (
+                        // Content is encrypted - only show link if user is the creator
+                        address?.toLowerCase() === certificate.creator?.toLowerCase() ? (
+                          <>
+                            <a
+                              href={`https://gateway.pinata.cloud/ipfs/${certificate.ipfsLink}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-green-700 hover:text-green-800 hover:underline break-all"
+                            >
+                              ipfs://{certificate.ipfsLink}
+                            </a>
+                            <p className="text-xs text-green-600 mt-1 font-semibold">
+                              🔐 Encrypted - Only you (creator) can access this content
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs text-stone-500 italic">
+                              🔒 Content is encrypted - IPFS link hidden
+                            </p>
+                            <p className="text-xs text-stone-600 mt-1">
+                              Only the creator can access this encrypted content
+                            </p>
+                          </>
+                        )
+                      ) : (
+                        // Not encrypted - show link normally
+                        <>
+                          <a
+                            href={`https://gateway.pinata.cloud/ipfs/${certificate.ipfsLink}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-green-700 hover:text-green-800 hover:underline break-all"
+                          >
+                            ipfs://{certificate.ipfsLink}
+                          </a>
+                          <p className="text-xs text-stone-600 mt-1">
+                            (Using Pinata gateway - faster and more reliable)
+                          </p>
+                        </>
+                      )}
                     </div>
 
                     <div>

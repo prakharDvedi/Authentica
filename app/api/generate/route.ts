@@ -5,8 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { generateImage } from '@/lib/ai';
+import { generateImage, generateMusic } from '@/lib/ai';
 import { generateProof, hashBuffer } from '@/lib/crypto';
+import { encryptContent, createEncryptedPayload } from '@/lib/encryption';
 let uploadToIpfs: any;
 let uploadMetadataToIpfs: any;
 
@@ -52,34 +53,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const stabilityKey = process.env.STABILITY_API_KEY?.trim();
-    const hasStabilityKey = stabilityKey && 
-      stabilityKey !== 'your-stability-api-key-here' && 
-      stabilityKey !== '' &&
-      stabilityKey.length > 10;
-    
-    if (!hasStabilityKey) {
-      return NextResponse.json(
-        { 
-          error: 'No image generation API key found. Please set STABILITY_API_KEY in your .env file.',
-          debug: {
-            stabilityKeySet: !!stabilityKey,
-            stabilityKeyLength: stabilityKey?.length || 0,
-            stabilityKeyPrefix: stabilityKey ? stabilityKey.substring(0, 5) + '...' : 'not set',
-          }
-        },
-        { status: 500 }
-      );
-    }
-
     let outputBuffer: Buffer;
     let transparencyData: any = null;
+    let contentType = 'image/png';
+    let fileExtension = '.png';
     
     if (type === 'image') {
+      const stabilityKey = process.env.STABILITY_API_KEY?.trim();
+      const hasStabilityKey = stabilityKey && 
+        stabilityKey !== 'your-stability-api-key-here' && 
+        stabilityKey !== '' &&
+        stabilityKey.length > 10;
+      
+      if (!hasStabilityKey) {
+        return NextResponse.json(
+          { 
+            error: 'No image generation API key found. Please set STABILITY_API_KEY in your .env file.',
+            debug: {
+              stabilityKeySet: !!stabilityKey,
+              stabilityKeyLength: stabilityKey?.length || 0,
+              stabilityKeyPrefix: stabilityKey ? stabilityKey.substring(0, 5) + '...' : 'not set',
+            }
+          },
+          { status: 500 }
+        );
+      }
+      
       try {
         const result = await generateImage(prompt);
         outputBuffer = result.image;
         transparencyData = result.transparency;
+        contentType = 'image/png';
+        fileExtension = '.png';
       } catch (error: any) {
         console.error('Image generation error:', error);
         return NextResponse.json(
@@ -87,9 +92,35 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
+    } else if (type === 'music') {
+      const rapidApiKey = process.env.RAPIDAPI_KEY?.trim();
+      
+      if (!rapidApiKey) {
+        return NextResponse.json(
+          { 
+            error: 'No music generation API key found. Please set RAPIDAPI_KEY in your .env.local file.',
+          },
+          { status: 500 }
+        );
+      }
+      
+      try {
+        const result = await generateMusic(prompt);
+        outputBuffer = result.audio;
+        transparencyData = result.transparency;
+        // BeatOven returns MP3, dummy audio returns WAV
+        contentType = result.transparency.provider === 'beatoven' ? 'audio/mpeg' : 'audio/wav';
+        fileExtension = result.transparency.provider === 'beatoven' ? '.mp3' : '.wav';
+      } catch (error: any) {
+        console.error('Music generation error:', error);
+        return NextResponse.json(
+          { error: `Music generation failed: ${error.message || 'Unknown error'}` },
+          { status: 500 }
+        );
+      }
     } else {
       return NextResponse.json(
-        { error: 'Unsupported type' },
+        { error: 'Unsupported type. Supported types: image, music' },
         { status: 400 }
       );
     }
@@ -97,12 +128,24 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now();
     const proof = generateProof(prompt, outputBuffer, userAddress, timestamp);
 
+    // Encrypt content before uploading to IPFS (creator-only access)
+    console.log('🔐 Encrypting content for IPFS storage...');
+    const encrypted = encryptContent(outputBuffer, userAddress);
+    const encryptedPayload = createEncryptedPayload(
+      encrypted.encrypted,
+      encrypted.iv,
+      encrypted.tag,
+      encrypted.keyHash
+    );
+
     let outputCid: string;
     if (uploadToIpfs) {
       try {
-        console.log('📤 Uploading to IPFS...');
-        outputCid = await uploadToIpfs(outputBuffer, `output-${timestamp}.png`);
-        console.log('✅ IPFS upload successful:', outputCid);
+        console.log('📤 Uploading encrypted content to IPFS...');
+        const fileName = type === 'image' ? `output-${timestamp}.encrypted` : `output-${timestamp}.encrypted`;
+        // Upload encrypted payload instead of original content
+        outputCid = await uploadToIpfs(encryptedPayload, fileName);
+        console.log('✅ IPFS upload successful (encrypted):', outputCid);
       } catch (error: any) {
         console.error('❌ IPFS upload error:', error);
         console.error('Error details:', error.message, error.response?.data);
@@ -123,6 +166,8 @@ export async function POST(request: NextRequest) {
       timestamp,
       ipfsLink: outputCid,
       type,
+      encrypted: true, // Mark as encrypted
+      keyHash: encrypted.keyHash, // Store key hash for verification
       ...(faceHash && { faceHash, faceTimestamp }),
       ...(transparencyData && { transparency: transparencyData }),
     };
