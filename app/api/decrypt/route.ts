@@ -48,15 +48,12 @@ export async function POST(request: NextRequest) {
       .digest("hex");
 
     if (keyHash !== expectedKeyHash) {
-      console.error(
-        "key hash mismatch - wallet address does not match creator"
-      );
+      console.error("key hash mismatch - wallet address != creator");
       console.error("expected key hash:", expectedKeyHash);
       console.error("received key hash:", keyHash);
       return NextResponse.json(
         {
-          error:
-            "Access denied. Your wallet address does not match the creator of this content. Only the creator can decrypt this encrypted content.",
+          error: "Access denied",
         },
         { status: 403 }
       );
@@ -77,8 +74,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         {
-          error:
-            "Decryption failed. This means you are not the creator of this content. Only the wallet address that created the content can decrypt it.",
+          error: "Decryption failed",
         },
         { status: 403 }
       );
@@ -89,8 +85,7 @@ export async function POST(request: NextRequest) {
     if (error.response?.status === 404) {
       return NextResponse.json(
         {
-          error:
-            "Content not found on IPFS. The CID may be incorrect or the content may have been removed.",
+          error: "Content not found on IPFS",
         },
         { status: 404 }
       );

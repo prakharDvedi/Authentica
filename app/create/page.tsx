@@ -102,10 +102,10 @@ export default function CreatePage() {
 
       let txHash: string | null = null;
 
-      // Small delay to ensure wallet client is ready
+      // delay for wallet to load
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Debug logging - check environment variable
+      // check env variables
       const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
       console.log("transaction debug:", {
         walletClient: !!walletClient,
@@ -119,25 +119,19 @@ export default function CreatePage() {
       });
 
       if (!contractAddress || contractAddress === "") {
-        alert(
-          "Contract address not configured. Please set NEXT_PUBLIC_CONTRACT_ADDRESS in .env.local and restart the server."
-        );
-        throw new Error("Contract address not set");
+        alert("contract address not set");
+        throw new Error("contract address not set");
       }
 
       if (!isConnected || !address) {
         console.error("wallet not connected");
-        alert(
-          'Wallet not connected. Please connect your wallet using the "Connect Wallet" button and try again.'
-        );
+        alert("wallet not connected");
       } else if (!walletClient) {
         console.error("wallet client not available");
         console.error(
           "this might be a timing issue. try waiting a moment and generating again."
         );
-        alert(
-          "Wallet client not available. Please:\n1. Make sure your wallet is connected\n2. Wait a moment\n3. Try generating again"
-        );
+        alert("wallet client not available");
       } else {
         try {
           if (chainId !== 11155111) {
@@ -148,17 +142,17 @@ export default function CreatePage() {
                 await new Promise((resolve) => setTimeout(resolve, 2000));
                 if (chainId !== 11155111) {
                   throw new Error(
-                    "Network switch failed. Please switch to Sepolia testnet manually in MetaMask."
+                    "network switch failed. please switch to sepolia testnet manually in metamask."
                   );
                 }
               } catch (switchError: any) {
                 throw new Error(
-                  `Failed to switch to Sepolia network. Please switch manually in MetaMask:\n\n1. Open MetaMask\n2. Click network dropdown\n3. Select "Sepolia"\n4. Try again`
+                  `failed to switch to sepolia network. please switch manually in metamask:\n\n1. open metamask\n2. click network dropdown\n3. select "sepolia"\n4. try again`
                 );
               }
             } else {
               throw new Error(
-                `Wrong network! Please switch to Sepolia testnet (Chain ID: 11155111). Current network Chain ID: ${chainId}. Open MetaMask and switch to Sepolia testnet.`
+                `wrong network! please switch to sepolia testnet (chain id: 11155111). current network chain id: ${chainId}. open metamask and switch to sepolia testnet.`
               );
             }
           }
@@ -176,7 +170,7 @@ export default function CreatePage() {
 
           if (network.chainId !== 11155111n) {
             throw new Error(
-              `Network mismatch! Wallet is on Chain ID ${network.chainId}, but contract is on Sepolia (11155111). Please switch to Sepolia testnet in MetaMask and try again.`
+              `network mismatch! wallet is on chain id ${network.chainId}, but contract is on sepolia (11155111). please switch to sepolia testnet in metamask and try again.`
             );
           }
 
@@ -210,26 +204,25 @@ export default function CreatePage() {
             rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || "not set",
           });
 
-          // Show user-friendly error message
+          // Show err msg
           let errorMessage = "Failed to register proof on blockchain. ";
 
-          if (error.message?.includes("Contract address not set")) {
-            errorMessage +=
-              "Please set NEXT_PUBLIC_CONTRACT_ADDRESS in your .env.local file.";
+          if (error.message?.includes("contract address not set")) {
+            errorMessage += "Please set contract address.";
           } else if (
             error.message?.includes("network") ||
-            error.message?.includes("Chain ID")
+            error.message?.includes("chain id")
           ) {
             errorMessage =
-              error.message || "Please switch to Sepolia testnet in MetaMask.";
+              error.message || "Please switch to sepolia testnet in metamask.";
           } else if (error.message?.includes("No contract found")) {
             errorMessage +=
-              "Contract not deployed. Please deploy the contract first.";
+              "contract not deployed. please deploy the contract first.";
           } else if (
             error.code === "ACTION_REJECTED" ||
             error.message?.includes("rejected")
           ) {
-            errorMessage = "Transaction was rejected. Please try again.";
+            errorMessage = "transaction was rejected. please try again.";
           } else {
             errorMessage += error.message || "Unknown error occurred.";
           }
@@ -258,17 +251,17 @@ export default function CreatePage() {
         faceHash: data.proof.faceHash || null,
         faceVerified: !!data.proof.faceHash,
         transparency: data.proof.transparency || null,
-        encrypted: true, // All content is now encrypted by default
-        type: contentType, // Store content type for decryption
+        encrypted: true,
+        type: contentType,
       };
 
       setCertificate(cert);
 
-      // Reset decrypted content when new certificate is created
+      // reset decrypted content when new certificate is created
       setDecryptedContent(null);
     } catch (error: any) {
       console.error("generation error:", error);
-      alert("Failed to generate: " + error.message);
+      alert("failed to generate: " + error.message);
     } finally {
       setLoading(false);
     }

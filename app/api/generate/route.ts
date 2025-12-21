@@ -72,8 +72,7 @@ export async function POST(request: NextRequest) {
       if (!hasStabilityKey) {
         return NextResponse.json(
           {
-            error:
-              "No image generation API key found. Please set STABILITY_API_KEY in your .env file.",
+            error: "No image generation API key found",
             debug: {
               stabilityKeySet: !!stabilityKey,
               stabilityKeyLength: stabilityKey?.length || 0,
@@ -109,8 +108,7 @@ export async function POST(request: NextRequest) {
       if (!rapidApiKey) {
         return NextResponse.json(
           {
-            error:
-              "No music generation API key found. Please set RAPIDAPI_KEY in your .env.local file.",
+            error: "No music generation API key found",
           },
           { status: 500 }
         );

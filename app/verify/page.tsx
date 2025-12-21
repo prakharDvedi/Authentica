@@ -119,15 +119,10 @@ function VerifyContent() {
     if (!currentMetadata) {
       console.log("metadata not loaded, fetching...");
       await fetchMetadataFromIpfs(verificationResult.combinedHash || hash);
-      // Wait a bit for metadata to load
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      // Re-read metadata state (it should be updated by now)
-      // Note: We'll use the metadata from state, but if it's still null, we'll proceed anyway
     }
 
-    // Check if content is encrypted (default to true if metadata not available)
-    // All new content is encrypted by default
-    const isEncrypted = currentMetadata?.encrypted !== false; // Default to true if not specified
+    const isEncrypted = currentMetadata?.encrypted !== false;
 
     if (!isEncrypted && currentMetadata) {
       setError(
@@ -157,8 +152,6 @@ function VerifyContent() {
         throw new Error(data.error || "Decryption failed");
       }
 
-      // Set decrypted content as data URL
-      // Use metadata type if available, otherwise default to image
       const contentType =
         (metadata?.type || "image") === "image" ? "image/png" : "audio/mpeg";
       setDecryptedContent(
@@ -183,8 +176,6 @@ function VerifyContent() {
     setSimilarityResult(null);
 
     try {
-      // Always use server-side comparison (includes steganography detection)
-      // Client-side comparison doesn't include steganography check, so we skip it
       const formData = new FormData();
       formData.append("image", uploadedImage);
       formData.append(
@@ -192,7 +183,6 @@ function VerifyContent() {
         `https://gateway.pinata.cloud/ipfs/${verificationResult.ipfsLink}`
       );
 
-      // If we have embedding hash in metadata, include it
       if (verificationResult.clipEmbeddingHash) {
         formData.append(
           "originalEmbeddingHash",
