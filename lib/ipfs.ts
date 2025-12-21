@@ -1,45 +1,31 @@
-/**
- * IPFS Storage Library
- * Handles uploading images and metadata to IPFS (InterPlanetary File System)
- * Supports both Pinata and standard IPFS clients
- */
-
 let ipfsClient: any = null;
 let ipfsModule: any = null;
 
-/**
- * Check if using Pinata service
- * Pinata provides a managed IPFS service with better reliability
- */
 function isPinata(): boolean {
-  const apiUrl = process.env.IPFS_API_URL || '';
-  return apiUrl.includes('pinata.cloud');
+  const apiUrl = process.env.IPFS_API_URL || "";
+  return apiUrl.includes("pinata.cloud");
 }
 
-/**
- * Get IPFS client instance
- * Initializes IPFS client if not already created
- * Returns 'pinata' string if using Pinata, otherwise returns client instance
- */
 async function getIpfsClient() {
   if (isPinata()) {
-    return 'pinata';
+    return "pinata";
   }
 
   if (!ipfsClient) {
     try {
       if (!ipfsModule) {
-        ipfsModule = await import('ipfs-http-client');
+        ipfsModule = await import("ipfs-http-client");
       }
       const { create } = ipfsModule;
-      
-      const ipfsApiUrl = process.env.IPFS_API_URL || 'https://ipfs.infura.io:5001/api/v0';
+
+      const ipfsApiUrl =
+        process.env.IPFS_API_URL || "https://ipfs.infura.io:5001/api/v0";
       const ipfsAuth = process.env.IPFS_AUTH;
-      
+
       let headers: Record<string, string> | undefined;
-      if (ipfsAuth && !ipfsAuth.startsWith('Bearer ')) {
-        headers = { 
-          authorization: `Basic ${Buffer.from(ipfsAuth).toString('base64')}` 
+      if (ipfsAuth && !ipfsAuth.startsWith("Bearer ")) {
+        headers = {
+          authorization: `Basic ${Buffer.from(ipfsAuth).toString("base64")}`,
         };
       }
 
@@ -48,45 +34,46 @@ async function getIpfsClient() {
         headers,
       });
     } catch (error: any) {
-      console.error('Failed to initialize IPFS client:', error);
+      console.error("failed to initialize ipfs client:", error);
       return null;
     }
   }
   return ipfsClient;
 }
 
-/**
- * Upload file to Pinata IPFS
- * Uses Pinata's API for reliable IPFS storage
- */
-async function uploadToPinata(file: Buffer, filename?: string): Promise<string> {
-  const axios = (await import('axios')).default;
+async function uploadToPinata(
+  file: Buffer,
+  filename?: string
+): Promise<string> {
+  const axios = (await import("axios")).default;
   const ipfsAuth = process.env.IPFS_AUTH;
-  
-  if (!ipfsAuth || !ipfsAuth.startsWith('Bearer ')) {
-    throw new Error('Pinata JWT token not found. Please set IPFS_AUTH=Bearer YOUR_JWT_TOKEN');
+
+  if (!ipfsAuth || !ipfsAuth.startsWith("Bearer ")) {
+    throw new Error(
+      "Pinata JWT token not found. Please set IPFS_AUTH=Bearer YOUR_JWT_TOKEN"
+    );
   }
 
   try {
-    const FormData = (await import('form-data')).default;
+    const FormData = (await import("form-data")).default;
     const formData = new FormData();
-    formData.append('file', file, {
+    formData.append("file", file, {
       filename: filename || `proof-${Date.now()}.png`,
-      contentType: 'image/png',
+      contentType: "image/png",
     });
 
     const metadata = JSON.stringify({
       name: filename || `proof-${Date.now()}.png`,
     });
-    formData.append('pinataMetadata', metadata);
+    formData.append("pinataMetadata", metadata);
 
     const options = JSON.stringify({
       cidVersion: 0,
     });
-    formData.append('pinataOptions', options);
+    formData.append("pinataOptions", options);
 
     const response = await axios.post(
-      'https://api.pinata.cloud/pinning/pinFileToIPFS',
+      "https://api.pinata.cloud/pinning/pinFileToIPFS",
       formData,
       {
         headers: {
@@ -100,61 +87,61 @@ async function uploadToPinata(file: Buffer, filename?: string): Promise<string> 
 
     return response.data.IpfsHash;
   } catch (error: any) {
-    console.error('Pinata upload error:', error);
+    console.error("pinata upload error:", error);
     if (error.response) {
-      console.error('Pinata error response:', error.response.data);
-      throw new Error(`Pinata upload failed: ${error.response.data?.error || error.message}`);
+      console.error("pinata error response:", error.response.data);
+      throw new Error(
+        `Pinata upload failed: ${error.response.data?.error || error.message}`
+      );
     }
-    throw new Error(`Failed to upload to Pinata: ${error.message || 'Unknown error'}`);
+    throw new Error(
+      `Failed to upload to Pinata: ${error.message || "Unknown error"}`
+    );
   }
 }
 
-/**
- * Upload file to IPFS
- * Main function for uploading images to decentralized storage
- * Returns IPFS CID (Content Identifier)
- */
-export async function uploadToIpfs(file: Buffer, filename?: string): Promise<string> {
+export async function uploadToIpfs(
+  file: Buffer,
+  filename?: string
+): Promise<string> {
   try {
     const client = await getIpfsClient();
-    
-    // Use Pinata if configured
-    if (client === 'pinata') {
+
+    if (client === "pinata") {
       return await uploadToPinata(file, filename);
     }
-    
+
     if (!client) {
-      throw new Error('IPFS client not available');
+      throw new Error("IPFS client not available");
     }
-    
-    // Upload to standard IPFS client
+
     const result = await client.add({
       path: filename || `proof-${Date.now()}`,
       content: file,
     });
-    
+
     return result.cid.toString();
   } catch (error: any) {
-    console.error('IPFS upload error:', error);
-    throw new Error(`Failed to upload to IPFS: ${error.message || 'Unknown error'}`);
+    console.error("ipfs upload error:", error);
+    throw new Error(
+      `Failed to upload to IPFS: ${error.message || "Unknown error"}`
+    );
   }
 }
 
-/**
- * Upload metadata JSON to Pinata IPFS
- * Stores artwork metadata (prompt, hashes, transparency data, etc.)
- */
 async function uploadMetadataToPinata(metadata: object): Promise<string> {
-  const axios = (await import('axios')).default;
+  const axios = (await import("axios")).default;
   const ipfsAuth = process.env.IPFS_AUTH;
-  
-  if (!ipfsAuth || !ipfsAuth.startsWith('Bearer ')) {
-    throw new Error('Pinata JWT token not found. Please set IPFS_AUTH=Bearer YOUR_JWT_TOKEN');
+
+  if (!ipfsAuth || !ipfsAuth.startsWith("Bearer ")) {
+    throw new Error(
+      "Pinata JWT token not found. Please set IPFS_AUTH=Bearer YOUR_JWT_TOKEN"
+    );
   }
 
   try {
     const response = await axios.post(
-      'https://api.pinata.cloud/pinning/pinJSONToIPFS',
+      "https://api.pinata.cloud/pinning/pinJSONToIPFS",
       {
         pinataContent: metadata,
         pinataMetadata: {
@@ -167,63 +154,60 @@ async function uploadMetadataToPinata(metadata: object): Promise<string> {
       {
         headers: {
           Authorization: ipfsAuth,
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       }
     );
 
     return response.data.IpfsHash;
   } catch (error: any) {
-    console.error('Pinata metadata upload error:', error);
+    console.error("pinata metadata upload error:", error);
     if (error.response) {
-      console.error('Pinata error response:', error.response.data);
-      throw new Error(`Pinata metadata upload failed: ${error.response.data?.error || error.message}`);
+      console.error("pinata error response:", error.response.data);
+      throw new Error(
+        `Pinata metadata upload failed: ${
+          error.response.data?.error || error.message
+        }`
+      );
     }
-    throw new Error(`Failed to upload metadata to Pinata: ${error.message || 'Unknown error'}`);
+    throw new Error(
+      `Failed to upload metadata to Pinata: ${error.message || "Unknown error"}`
+    );
   }
 }
 
-/**
- * Upload metadata to IPFS
- * Stores JSON metadata containing proof data, transparency info, etc.
- * Returns IPFS CID for the metadata
- */
 export async function uploadMetadataToIpfs(metadata: object): Promise<string> {
   try {
     const client = await getIpfsClient();
-    
-    // Use Pinata if configured
-    if (client === 'pinata') {
+
+    if (client === "pinata") {
       return await uploadMetadataToPinata(metadata);
     }
-    
+
     if (!client) {
-      throw new Error('IPFS client not available');
+      throw new Error("IPFS client not available");
     }
-    
+
     const metadataString = JSON.stringify(metadata, null, 2);
     const result = await client.add({
       path: `metadata-${Date.now()}.json`,
       content: Buffer.from(metadataString),
     });
-    
+
     return result.cid.toString();
   } catch (error: any) {
-    console.error('IPFS metadata upload error:', error);
-    throw new Error(`Failed to upload metadata to IPFS: ${error.message || 'Unknown error'}`);
+    console.error("ipfs metadata upload error:", error);
+    throw new Error(
+      `Failed to upload metadata to IPFS: ${error.message || "Unknown error"}`
+    );
   }
 }
 
-/**
- * Get IPFS URL for a CID
- * Returns a gateway URL to access IPFS content
- * Uses Pinata gateway if configured, otherwise uses public gateway
- */
 export function getIpfsUrl(cid: string): string {
   if (isPinata()) {
     return `https://gateway.pinata.cloud/ipfs/${cid}`;
   }
-  
-  const gateway = process.env.IPFS_GATEWAY || 'https://ipfs.io/ipfs/';
+
+  const gateway = process.env.IPFS_GATEWAY || "https://ipfs.io/ipfs/";
   return `${gateway}${cid}`;
 }

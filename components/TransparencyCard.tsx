@@ -1,27 +1,21 @@
-/**
- * Transparency Card Component
- * Displays AI generation parameters and transparency score
- * Shows model, provider, steps, seed, sampler, CFG scale, etc.
- * Calculates transparency score based on available parameters
- */
+"use client";
 
-'use client';
-
-import { useState } from 'react';
-import type { TransparencyData, MusicTransparencyData } from '@/lib/ai';
+import { useState } from "react";
+import type { TransparencyData, MusicTransparencyData } from "@/lib/ai";
 
 interface TransparencyCardProps {
   transparency: TransparencyData | MusicTransparencyData;
   prompt: string;
 }
 
-export default function TransparencyCard({ transparency, prompt }: TransparencyCardProps) {
+export default function TransparencyCard({
+  transparency,
+  prompt,
+}: TransparencyCardProps) {
   const [copied, setCopied] = useState(false);
 
-  // Check if it's image or music transparency data
-  const isMusic = 'duration' in transparency && !('width' in transparency);
-  
-  // Calculate transparency score
+  const isMusic = "duration" in transparency && !("width" in transparency);
+
   const calculateScore = (): number => {
     if (isMusic) {
       const musicTransparency = transparency as MusicTransparencyData;
@@ -32,7 +26,9 @@ export default function TransparencyCard({ transparency, prompt }: TransparencyC
         musicTransparency.prompt,
         musicTransparency.timestamp,
       ];
-      const filledFields = fields.filter(field => field !== undefined && field !== null).length;
+      const filledFields = fields.filter(
+        (field) => field !== undefined && field !== null
+      ).length;
       return Math.round((filledFields / 5) * 100);
     } else {
       const imageTransparency = transparency as TransparencyData;
@@ -46,43 +42,47 @@ export default function TransparencyCard({ transparency, prompt }: TransparencyC
         imageTransparency.sampler,
         imageTransparency.cfgScale,
       ];
-      const filledFields = fields.filter(field => field !== undefined && field !== null).length;
+      const filledFields = fields.filter(
+        (field) => field !== undefined && field !== null
+      ).length;
       return Math.round((filledFields / 8) * 100);
     }
   };
 
   const score = calculateScore();
   const getScoreColor = () => {
-    if (score >= 90) return 'text-green-600';
-    if (score >= 70) return 'text-yellow-600';
-    return 'text-orange-600';
+    if (score >= 90) return "text-green-600";
+    if (score >= 70) return "text-yellow-600";
+    return "text-orange-600";
   };
 
   const getScoreBadge = () => {
-    if (score >= 90) return '🟢';
-    if (score >= 70) return '🟡';
-    return '🟠';
+    if (score >= 90) return "🟢";
+    if (score >= 70) return "🟡";
+    return "🟠";
   };
 
   const copyToClipboard = () => {
     let text = `AI Transparency Report
 Model: ${transparency.model}
 Provider: ${transparency.provider}`;
-    
+
     if (isMusic) {
       const musicTransparency = transparency as MusicTransparencyData;
       text += `
-Duration: ${musicTransparency.duration || 'N/A'} seconds`;
+Duration: ${musicTransparency.duration || "N/A"} seconds`;
     } else {
       const imageTransparency = transparency as TransparencyData;
       text += `
 Resolution: ${imageTransparency.width}×${imageTransparency.height}
-${imageTransparency.steps ? `Steps: ${imageTransparency.steps}` : ''}
-${imageTransparency.seed ? `Seed: ${imageTransparency.seed}` : ''}
-${imageTransparency.sampler ? `Sampler: ${imageTransparency.sampler}` : ''}
-${imageTransparency.cfgScale ? `CFG Scale: ${imageTransparency.cfgScale}` : ''}`;
+${imageTransparency.steps ? `Steps: ${imageTransparency.steps}` : ""}
+${imageTransparency.seed ? `Seed: ${imageTransparency.seed}` : ""}
+${imageTransparency.sampler ? `Sampler: ${imageTransparency.sampler}` : ""}
+${
+  imageTransparency.cfgScale ? `CFG Scale: ${imageTransparency.cfgScale}` : ""
+}`;
     }
-    
+
     text += `
 Prompt: ${prompt}
 Timestamp: ${new Date(transparency.timestamp).toISOString()}`;
@@ -102,7 +102,7 @@ Timestamp: ${new Date(transparency.timestamp).toISOString()}`;
           onClick={copyToClipboard}
           className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded-lg transition-colors"
         >
-          {copied ? 'Copied!' : 'Copy'}
+          {copied ? "Copied!" : "Copy"}
         </button>
       </div>
 
@@ -117,12 +117,14 @@ Timestamp: ${new Date(transparency.timestamp).toISOString()}`;
           <div>
             <p className="text-xs text-stone-600 mb-1">Provider</p>
             <p className="text-sm font-semibold text-stone-800 bg-white/80 p-2 rounded border border-blue-200/50">
-              {isMusic 
-                ? (transparency.provider === 'beatoven' ? 'BeatOven AI' : 'Dummy Audio')
-                : 'Stability AI'}
+              {isMusic
+                ? transparency.provider === "beatoven"
+                  ? "BeatOven AI"
+                  : "Dummy Audio"
+                : "Stability AI"}
             </p>
           </div>
-          
+
           {isMusic ? (
             <>
               {(transparency as MusicTransparencyData).duration && (
@@ -139,7 +141,8 @@ Timestamp: ${new Date(transparency.timestamp).toISOString()}`;
               <div>
                 <p className="text-xs text-stone-600 mb-1">Resolution</p>
                 <p className="text-sm font-semibold text-stone-800 bg-white/80 p-2 rounded border border-blue-200/50">
-                  {(transparency as TransparencyData).width}×{(transparency as TransparencyData).height}
+                  {(transparency as TransparencyData).width}×
+                  {(transparency as TransparencyData).height}
                 </p>
               </div>
               {(transparency as TransparencyData).steps && (
@@ -209,20 +212,20 @@ Timestamp: ${new Date(transparency.timestamp).toISOString()}`;
               className="h-full transition-all duration-500"
               style={{
                 width: `${score}%`,
-                backgroundColor: score >= 90 ? '#10b981' : score >= 70 ? '#f59e0b' : '#f97316',
+                backgroundColor:
+                  score >= 90 ? "#10b981" : score >= 70 ? "#f59e0b" : "#f97316",
               }}
             />
           </div>
         </div>
         <p className="text-xs text-stone-600 mt-2">
-          {score >= 90 
-            ? 'Full transparency - All parameters recorded'
-            : score >= 70 
-            ? 'Good transparency - Most parameters available'
-            : 'Limited transparency - Some parameters missing'}
+          {score >= 90
+            ? "Full transparency - All parameters recorded"
+            : score >= 70
+            ? "Good transparency - Most parameters available"
+            : "Limited transparency - Some parameters missing"}
         </p>
       </div>
     </div>
   );
 }
-

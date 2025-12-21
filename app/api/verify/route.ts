@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { verifyProofOnChain, getProvider } from '@/lib/blockchain';
-import { hashBuffer } from '@/lib/crypto';
+import { NextRequest, NextResponse } from "next/server";
+import { verifyProofOnChain, getProvider } from "@/lib/blockchain";
+import { hashBuffer } from "@/lib/crypto";
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
     if (!file && !combinedHash) {
       return NextResponse.json(
-        { error: 'File or combined hash is required' },
+        { error: "File or combined hash is required" },
         { status: 400 }
       );
     }
@@ -28,24 +28,21 @@ export async function POST(request: NextRequest) {
     }
 
     if (file) {
-      const fileBuffer = Buffer.from(file, 'base64');
+      const fileBuffer = Buffer.from(file, "base64");
       const outputHash = hashBuffer(fileBuffer);
-      
+
       return NextResponse.json({
         success: true,
         outputHash,
-        message: 'Upload file with combined hash for full verification',
+        message: "Upload file with combined hash for full verification",
       });
     }
 
-    return NextResponse.json(
-      { error: 'Invalid request' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   } catch (error: any) {
-    console.error('Verification error:', error);
+    console.error("verification error:", error);
     return NextResponse.json(
-      { error: error.message || 'Failed to verify proof' },
+      { error: error.message || "Failed to verify proof" },
       { status: 500 }
     );
   }

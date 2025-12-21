@@ -1,8 +1,3 @@
-/**
- * Create Page Component
- * Main page for generating AI artwork and creating proofs
- */
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -112,15 +107,15 @@ export default function CreatePage() {
 
       // Debug logging - check environment variable
       const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
-      console.log("Transaction Debug:", {
+      console.log("transaction debug:", {
         walletClient: !!walletClient,
         walletClientType: walletClient ? typeof walletClient : "null",
         isConnected,
         address,
         chainId,
-        contractAddress: contractAddress || "NOT SET",
+        contractAddress: contractAddress || "not set",
         contractAddressLength: contractAddress?.length || 0,
-        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL ? "Set" : "NOT SET",
+        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL ? "set" : "not set",
       });
 
       if (!contractAddress || contractAddress === "") {
@@ -131,14 +126,14 @@ export default function CreatePage() {
       }
 
       if (!isConnected || !address) {
-        console.error("Wallet not connected");
+        console.error("wallet not connected");
         alert(
           'Wallet not connected. Please connect your wallet using the "Connect Wallet" button and try again.'
         );
       } else if (!walletClient) {
-        console.error("Wallet client not available");
+        console.error("wallet client not available");
         console.error(
-          "This might be a timing issue. Try waiting a moment and generating again."
+          "this might be a timing issue. try waiting a moment and generating again."
         );
         alert(
           "Wallet client not available. Please:\n1. Make sure your wallet is connected\n2. Wait a moment\n3. Try generating again"
@@ -148,7 +143,7 @@ export default function CreatePage() {
           if (chainId !== 11155111) {
             if (switchNetwork) {
               try {
-                console.log("Attempting to switch to Sepolia network...");
+                console.log("attempting to switch to sepolia network...");
                 switchNetwork(11155111);
                 await new Promise((resolve) => setTimeout(resolve, 2000));
                 if (chainId !== 11155111) {
@@ -173,9 +168,9 @@ export default function CreatePage() {
 
           const network = await provider.getNetwork();
           console.log(
-            "Connected to network:",
+            "connected to network:",
             network.name,
-            "Chain ID:",
+            "chain id:",
             network.chainId.toString()
           );
 
@@ -185,14 +180,14 @@ export default function CreatePage() {
             );
           }
 
-          console.log("Starting blockchain registration...");
+          console.log("starting blockchain registration...");
           console.log(
-            "Contract address:",
-            process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "NOT SET"
+            "contract address:",
+            process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "not set"
           );
           console.log(
-            "RPC URL:",
-            process.env.NEXT_PUBLIC_RPC_URL ? "Set" : "NOT SET"
+            "rpc url:",
+            process.env.NEXT_PUBLIC_RPC_URL ? "set" : "not set"
           );
 
           txHash = await registerProofOnChain(signer, {
@@ -202,10 +197,10 @@ export default function CreatePage() {
             ipfsLink: data.proof.outputCid,
           });
 
-          console.log("Transaction successful! Hash:", txHash);
+          console.log("transaction successful! hash:", txHash);
         } catch (error: any) {
-          console.error("Blockchain registration error:", error);
-          console.error("Error details:", {
+          console.error("blockchain registration error:", error);
+          console.error("error details:", {
             message: error.message,
             code: error.code,
             data: error.data,
@@ -246,7 +241,7 @@ export default function CreatePage() {
 
       // Log final status
       if (!txHash) {
-        console.warn("Transaction hash is null - transaction was not sent");
+        console.warn("transaction hash is null - transaction was not sent");
       }
 
       const cert = {
@@ -272,7 +267,7 @@ export default function CreatePage() {
       // Reset decrypted content when new certificate is created
       setDecryptedContent(null);
     } catch (error: any) {
-      console.error("Generation error:", error);
+      console.error("generation error:", error);
       alert("Failed to generate: " + error.message);
     } finally {
       setLoading(false);
@@ -380,7 +375,7 @@ export default function CreatePage() {
                       setFaceTimestamp(timestamp);
                     }}
                     onError={(error) => {
-                      console.error("Camera error:", error);
+                      console.error("camera error:", error);
                     }}
                     disabled={loading}
                   />
@@ -599,7 +594,7 @@ export default function CreatePage() {
                                     `data:${contentType};base64,${data.decryptedContent}`
                                   );
                                 } catch (error: any) {
-                                  console.error("Decryption error:", error);
+                                  console.error("decryption error:", error);
                                   alert(`Failed to decrypt: ${error.message}`);
                                 } finally {
                                   setDecrypting(false);

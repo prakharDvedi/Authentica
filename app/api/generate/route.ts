@@ -1,35 +1,33 @@
-/**
- * API Route: Generate AI Artwork
- * Handles AI image generation, proof creation, and IPFS storage
- * Returns proof data including transparency metadata
- */
-
-import { NextRequest, NextResponse } from 'next/server';
-import { generateImage, generateMusic } from '@/lib/ai';
-import { generateProof, hashBuffer } from '@/lib/crypto';
-import { encryptContent, createEncryptedPayload } from '@/lib/encryption';
+import { NextRequest, NextResponse } from "next/server";
+import { generateImage, generateMusic } from "@/lib/ai";
+import { generateProof, hashBuffer } from "@/lib/crypto";
+import { encryptContent, createEncryptedPayload } from "@/lib/encryption";
 let uploadToIpfs: any;
 let uploadMetadataToIpfs: any;
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-/**
- * POST /api/generate
- * Generates AI artwork, creates cryptographic proof, and stores on IPFS
- */
 export async function POST(request: NextRequest) {
   try {
     if (!uploadToIpfs || !uploadMetadataToIpfs) {
       try {
-        const ipfsModule = await import('@/lib/ipfs');
+        const ipfsModule = await import("@/lib/ipfs");
         uploadToIpfs = ipfsModule.uploadToIpfs;
         uploadMetadataToIpfs = ipfsModule.uploadMetadataToIpfs;
-        console.log('IPFS module loaded successfully');
-        console.log('IPFS_API_URL:', process.env.IPFS_API_URL ? 'Set' : 'Not set');
-        console.log('IPFS_AUTH:', process.env.IPFS_AUTH ? 'Set (length: ' + process.env.IPFS_AUTH.length + ')' : 'Not set');
+        console.log("ipfs module loaded successfully");
+        console.log(
+          "ipfs_api_url:",
+          process.env.IPFS_API_URL ? "set" : "not set"
+        );
+        console.log(
+          "ipfs_auth:",
+          process.env.IPFS_AUTH
+            ? "set (length: " + process.env.IPFS_AUTH.length + ")"
+            : "not set"
+        );
       } catch (error: any) {
-        console.error('Failed to import IPFS module:', error);
+        console.error("failed to import ipfs module:", error);
       }
     }
 
@@ -38,87 +36,110 @@ export async function POST(request: NextRequest) {
       body = await request.json();
     } catch (error) {
       return NextResponse.json(
-        { error: 'Invalid JSON in request body' },
+        { error: "Invalid JSON in request body" },
         { status: 400 }
       );
     }
 
-    const { prompt, userAddress, type = 'image', faceHash, faceTimestamp } = body;
+    const {
+      prompt,
+      userAddress,
+      type = "image",
+      faceHash,
+      faceTimestamp,
+    } = body;
 
     if (!prompt || !userAddress) {
       return NextResponse.json(
-        { error: 'Prompt and user address are required' },
+        { error: "Prompt and user address are required" },
         { status: 400 }
       );
     }
 
     let outputBuffer: Buffer;
     let transparencyData: any = null;
-    let contentType = 'image/png';
-    let fileExtension = '.png';
-    
-    if (type === 'image') {
+    let contentType = "image/png";
+    let fileExtension = ".png";
+
+    if (type === "image") {
       const stabilityKey = process.env.STABILITY_API_KEY?.trim();
-      const hasStabilityKey = stabilityKey && 
-        stabilityKey !== 'your-stability-api-key-here' && 
-        stabilityKey !== '' &&
+      const hasStabilityKey =
+        stabilityKey &&
+        stabilityKey !== "your-stability-api-key-here" &&
+        stabilityKey !== "" &&
         stabilityKey.length > 10;
-      
+
       if (!hasStabilityKey) {
         return NextResponse.json(
-          { 
-            error: 'No image generation API key found. Please set STABILITY_API_KEY in your .env file.',
+          {
+            error:
+              "No image generation API key found. Please set STABILITY_API_KEY in your .env file.",
             debug: {
               stabilityKeySet: !!stabilityKey,
               stabilityKeyLength: stabilityKey?.length || 0,
-              stabilityKeyPrefix: stabilityKey ? stabilityKey.substring(0, 5) + '...' : 'not set',
-            }
+              stabilityKeyPrefix: stabilityKey
+                ? stabilityKey.substring(0, 5) + "..."
+                : "not set",
+            },
           },
           { status: 500 }
         );
       }
-      
+
       try {
         const result = await generateImage(prompt);
         outputBuffer = result.image;
         transparencyData = result.transparency;
-        contentType = 'image/png';
-        fileExtension = '.png';
+        contentType = "image/png";
+        fileExtension = ".png";
       } catch (error: any) {
-        console.error('Image generation error:', error);
+        console.error("image generation error:", error);
         return NextResponse.json(
-          { error: `Image generation failed: ${error.message || 'Unknown error'}` },
-          { status: 500 }
-        );
-      }
-    } else if (type === 'music') {
-      const rapidApiKey = process.env.RAPIDAPI_KEY?.trim();
-      
-      if (!rapidApiKey) {
-        return NextResponse.json(
-          { 
-            error: 'No music generation API key found. Please set RAPIDAPI_KEY in your .env.local file.',
+          {
+            error: `Image generation failed: ${
+              error.message || "Unknown error"
+            }`,
           },
           { status: 500 }
         );
       }
-      
+    } else if (type === "music") {
+      const rapidApiKey = process.env.RAPIDAPI_KEY?.trim();
+
+      if (!rapidApiKey) {
+        return NextResponse.json(
+          {
+            error:
+              "No music generation API key found. Please set RAPIDAPI_KEY in your .env.local file.",
+          },
+          { status: 500 }
+        );
+      }
+
       try {
         const result = await generateMusic(prompt);
         outputBuffer = result.audio;
         transparencyData = result.transparency;
-        contentType = result.transparency.provider === 'beatoven' ? 'audio/mpeg' : 'audio/wav';
-        fileExtension = result.transparency.provider === 'beatoven' ? '.mp3' : '.wav';
+        contentType =
+          result.transparency.provider === "beatoven"
+            ? "audio/mpeg"
+            : "audio/wav";
+        fileExtension =
+          result.transparency.provider === "beatoven" ? ".mp3" : ".wav";
       } catch (error: any) {
-        console.error('Music generation error:', error);
+        console.error("music generation error:", error);
         return NextResponse.json(
-          { error: `Music generation failed: ${error.message || 'Unknown error'}` },
+          {
+            error: `Music generation failed: ${
+              error.message || "Unknown error"
+            }`,
+          },
           { status: 500 }
         );
       }
     } else {
       return NextResponse.json(
-        { error: 'Unsupported type. Supported types: image, music' },
+        { error: "Unsupported type. Supported types: image, music" },
         { status: 400 }
       );
     }
@@ -126,7 +147,7 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now();
     const proof = generateProof(prompt, outputBuffer, userAddress, timestamp);
 
-    console.log('Encrypting content for IPFS storage...');
+    console.log("encrypting content for ipfs storage...");
     const encrypted = encryptContent(outputBuffer, userAddress);
     const encryptedPayload = createEncryptedPayload(
       encrypted.encrypted,
@@ -138,18 +159,21 @@ export async function POST(request: NextRequest) {
     let outputCid: string;
     if (uploadToIpfs) {
       try {
-        console.log('Uploading encrypted content to IPFS...');
-        const fileName = type === 'image' ? `output-${timestamp}.encrypted` : `output-${timestamp}.encrypted`;
+        console.log("uploading encrypted content to ipfs...");
+        const fileName =
+          type === "image"
+            ? `output-${timestamp}.encrypted`
+            : `output-${timestamp}.encrypted`;
         outputCid = await uploadToIpfs(encryptedPayload, fileName);
-        console.log('IPFS upload successful (encrypted):', outputCid);
+        console.log("ipfs upload successful (encrypted):", outputCid);
       } catch (error: any) {
-        console.error('IPFS upload error:', error);
-        console.error('Error details:', error.message, error.response?.data);
-        outputCid = 'ipfs-upload-failed';
+        console.error("ipfs upload error:", error);
+        console.error("error details:", error.message, error.response?.data);
+        outputCid = "ipfs-upload-failed";
       }
     } else {
-      console.warn('IPFS upload function not available');
-      outputCid = 'ipfs-not-available';
+      console.warn("ipfs upload function not available");
+      outputCid = "ipfs-not-available";
     }
     const outputHash = hashBuffer(outputBuffer);
 
@@ -171,17 +195,17 @@ export async function POST(request: NextRequest) {
     let metadataCid: string;
     if (uploadMetadataToIpfs) {
       try {
-        console.log('Uploading metadata to IPFS...');
+        console.log("uploading metadata to ipfs...");
         metadataCid = await uploadMetadataToIpfs(metadata);
-        console.log('IPFS metadata upload successful:', metadataCid);
+        console.log("ipfs metadata upload successful:", metadataCid);
       } catch (error: any) {
-        console.error('IPFS metadata upload error:', error);
-        console.error('Error details:', error.message, error.response?.data);
-        metadataCid = 'ipfs-upload-failed';
+        console.error("ipfs metadata upload error:", error);
+        console.error("error details:", error.message, error.response?.data);
+        metadataCid = "ipfs-upload-failed";
       }
     } else {
-      console.warn('IPFS metadata upload function not available');
-      metadataCid = 'ipfs-not-available';
+      console.warn("ipfs metadata upload function not available");
+      metadataCid = "ipfs-not-available";
     }
 
     return NextResponse.json({
@@ -190,23 +214,21 @@ export async function POST(request: NextRequest) {
         ...proof,
         outputCid,
         metadataCid,
-        outputBuffer: outputBuffer.toString('base64'),
+        outputBuffer: outputBuffer.toString("base64"),
         ...(faceHash && { faceHash, faceTimestamp }),
         ...(transparencyData && { transparency: transparencyData }),
       },
     });
   } catch (error: any) {
-    console.error('Generation error:', error);
-    
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : typeof error === 'string' 
-        ? error 
-        : 'Failed to generate content';
-    
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    console.error("generation error:", error);
+
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+        ? error
+        : "Failed to generate content";
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

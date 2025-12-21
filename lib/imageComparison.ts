@@ -1,19 +1,8 @@
-/**
- * Client-Side Image Comparison Library
- * Provides visual similarity detection using canvas pixel analysis
- * More accurate than byte comparison for edited images (crop, filter, color adjustments)
- * Used as fallback when Python CLIP service is not available
- */
-
 export interface ImageComparisonResult {
   similarity: number;
   method: string;
 }
 
-/**
- * Compare two images using canvas-based analysis
- * This is more accurate than byte comparison for edited images
- */
 export async function compareImagesClient(
   image1Url: string,
   image2Url: string
@@ -22,13 +11,13 @@ export async function compareImagesClient(
     const img1 = await loadImage(image1Url);
     const img2 = await loadImage(image2Url);
 
-    const canvas1 = document.createElement('canvas');
-    const canvas2 = document.createElement('canvas');
-    const ctx1 = canvas1.getContext('2d', { willReadFrequently: true });
-    const ctx2 = canvas2.getContext('2d', { willReadFrequently: true });
+    const canvas1 = document.createElement("canvas");
+    const canvas2 = document.createElement("canvas");
+    const ctx1 = canvas1.getContext("2d", { willReadFrequently: true });
+    const ctx2 = canvas2.getContext("2d", { willReadFrequently: true });
 
     if (!ctx1 || !ctx2) {
-      throw new Error('Failed to get canvas context');
+      throw new Error("Failed to get canvas context");
     }
 
     const maxWidth = Math.max(img1.width, img2.width);
@@ -56,7 +45,7 @@ export async function compareImagesClient(
       const g1 = data1.data[i + 1];
       const b1 = data1.data[i + 2];
       const a1 = data1.data[i + 3];
-      
+
       const r2 = data2.data[i];
       const g2 = data2.data[i + 1];
       const b2 = data2.data[i + 2];
@@ -68,7 +57,7 @@ export async function compareImagesClient(
         const colorDistance = Math.sqrt(
           Math.pow(r1 - r2, 2) + Math.pow(g1 - g2, 2) + Math.pow(b1 - b2, 2)
         );
-        
+
         if (colorDistance < 5) {
           nearMatches += 0.95;
         } else if (colorDistance < 15) {
@@ -86,7 +75,7 @@ export async function compareImagesClient(
     const hist2 = calculateHistogram(data2);
     const histogramSimilarity = compareHistograms(hist1, hist2);
 
-    const similarity = (pixelSimilarity * 0.6) + (histogramSimilarity * 0.4);
+    const similarity = pixelSimilarity * 0.6 + histogramSimilarity * 0.4;
 
     let finalSimilarity = similarity;
     if (pixelSimilarity > 0.95 && histogramSimilarity > 0.95) {
@@ -95,13 +84,13 @@ export async function compareImagesClient(
 
     return {
       similarity: Math.min(1.0, Math.max(0.0, finalSimilarity)),
-      method: 'canvas',
+      method: "canvas",
     };
   } catch (error) {
-    console.error('Client-side comparison error:', error);
+    console.error("client-side comparison error:", error);
     return {
       similarity: 0.5,
-      method: 'error',
+      method: "error",
     };
   }
 }
@@ -109,7 +98,7 @@ export async function compareImagesClient(
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = url;
@@ -138,4 +127,3 @@ function compareHistograms(hist1: number[], hist2: number[]): number {
   }
   return similarity;
 }
-
