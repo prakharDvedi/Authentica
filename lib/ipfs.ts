@@ -49,9 +49,7 @@ async function uploadToPinata(
   const ipfsAuth = process.env.IPFS_AUTH;
 
   if (!ipfsAuth || !ipfsAuth.startsWith("Bearer ")) {
-    throw new Error(
-      "Pinata JWT token not found. Please set IPFS_AUTH=Bearer YOUR_JWT_TOKEN"
-    );
+    throw new Error("no ipfs auth");
   }
 
   try {
@@ -95,7 +93,7 @@ async function uploadToPinata(
       );
     }
     throw new Error(
-      `Failed to upload to Pinata: ${error.message || "Unknown error"}`
+      `failed to upload to pinata: ${error.message || "Unknown error"}`
     );
   }
 }
@@ -124,7 +122,7 @@ export async function uploadToIpfs(
   } catch (error: any) {
     console.error("ipfs upload error:", error);
     throw new Error(
-      `Failed to upload to IPFS: ${error.message || "Unknown error"}`
+      `failed to upload to ipfs: ${error.message || "Unknown error"}`
     );
   }
 }
@@ -134,9 +132,7 @@ async function uploadMetadataToPinata(metadata: object): Promise<string> {
   const ipfsAuth = process.env.IPFS_AUTH;
 
   if (!ipfsAuth || !ipfsAuth.startsWith("Bearer ")) {
-    throw new Error(
-      "Pinata JWT token not found. Please set IPFS_AUTH=Bearer YOUR_JWT_TOKEN"
-    );
+    throw new Error("no ipfs auth");
   }
 
   try {
@@ -171,7 +167,7 @@ async function uploadMetadataToPinata(metadata: object): Promise<string> {
       );
     }
     throw new Error(
-      `Failed to upload metadata to Pinata: ${error.message || "Unknown error"}`
+      `failed to upload metadata to pinata: ${error.message || "Unknown error"}`
     );
   }
 }
@@ -198,7 +194,7 @@ export async function uploadMetadataToIpfs(metadata: object): Promise<string> {
   } catch (error: any) {
     console.error("ipfs metadata upload error:", error);
     throw new Error(
-      `Failed to upload metadata to IPFS: ${error.message || "Unknown error"}`
+      `failed to upload metadata to ipfs: ${error.message || "Unknown error"}`
     );
   }
 }

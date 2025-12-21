@@ -126,7 +126,7 @@ export async function generatePDFCertificate(
   doc.text("Verify at:", margin, yPos);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.setTextColor(59, 130, 246); // Blue
+  doc.setTextColor(59, 130, 246);
   const urlLines = doc.splitTextToSize(cert.verificationUrl, contentWidth - 25);
   doc.text(urlLines, margin + 25, yPos);
   yPos += urlLines.length * 4 + 10;

@@ -29,32 +29,24 @@ export async function registerProofOnChain(
     const contractAddress = getContractAddress();
 
     if (!contractAddress || contractAddress === "") {
-      throw new Error(
-        "Contract address not set. Please deploy the contract and set NEXT_PUBLIC_CONTRACT_ADDRESS in your .env.local file."
-      );
+      throw new Error("no contact address");
     }
 
     const contract = getContract(signer);
 
     if (!signer.provider) {
-      throw new Error(
-        "Signer does not have a provider. Please connect to a network."
-      );
+      throw new Error("no provider");
     }
 
     const signerAddress = await signer.getAddress();
     if (!signerAddress) {
-      throw new Error(
-        "Signer does not have an address. Cannot send transactions."
-      );
+      throw new Error("no signer address");
     }
     console.log("signer address:", signerAddress);
 
     const code = await signer.provider.getCode(contractAddress);
     if (code === "0x") {
-      throw new Error(
-        `No contract found at address ${contractAddress}. Please deploy the contract first.`
-      );
+      throw new Error(`no contract found at address ${contractAddress}`);
     }
     console.log("contract verified at address:", contractAddress);
 
@@ -121,23 +113,19 @@ export async function registerProofOnChain(
     }
 
     if (error.code === "CALL_EXCEPTION") {
-      throw new Error(
-        "Contract call failed. Make sure the contract is deployed and the address is correct."
-      );
+      throw new Error("Contract call failed");
     }
 
     if (error.code === "INSUFFICIENT_FUNDS") {
-      throw new Error(
-        "Insufficient funds for transaction. Please add more ETH to your wallet."
-      );
+      throw new Error("gareeb");
     }
 
     if (error.code === "ACTION_REJECTED") {
-      throw new Error("Transaction rejected by user.");
+      throw new Error("rejected by user");
     }
 
     throw new Error(
-      `Failed to register proof on blockchain: ${
+      `failed to register proof on blockchain: ${
         error.message || "Unknown error"
       }`
     );
@@ -157,9 +145,7 @@ export async function verifyProofOnChain(
     const contractAddress = getContractAddress();
 
     if (!contractAddress || contractAddress === "") {
-      throw new Error(
-        "Contract address not set. Please set NEXT_PUBLIC_CONTRACT_ADDRESS in your .env.local file."
-      );
+      throw new Error("no contract address");
     }
 
     console.log("verifying proof:", {
@@ -169,9 +155,7 @@ export async function verifyProofOnChain(
 
     const code = await provider.getCode(contractAddress);
     if (code === "0x") {
-      throw new Error(
-        `No contract found at address ${contractAddress}. The contract may not be deployed or the address is incorrect.`
-      );
+      throw new Error(`no contract found at address ${contractAddress}`);
     }
     console.log("contract found at address:", contractAddress);
 
@@ -197,27 +181,19 @@ export async function verifyProofOnChain(
     console.error("blockchain verification error:", error);
 
     if (error.message?.includes("Contract address not set")) {
-      throw new Error(
-        "Contract address not configured. Please set NEXT_PUBLIC_CONTRACT_ADDRESS in .env.local and restart the server."
-      );
+      throw new Error("no contract address");
     }
 
     if (error.message?.includes("No contract found")) {
-      throw new Error(
-        `Contract not found at address. Please verify the contract is deployed and the address is correct.`
-      );
+      throw new Error(`Contract not found at address`);
     }
 
     if (error.code === "CALL_EXCEPTION" || error.code === "BAD_DATA") {
-      throw new Error(
-        `Contract call failed. This could mean:\n1. The proof was never registered on blockchain\n2. The contract address is incorrect\n3. The RPC URL is not working\n\nError: ${
-          error.message || "Unknown error"
-        }`
-      );
+      throw new Error(`Contract call failed`);
     }
 
     throw new Error(
-      `Failed to verify proof on blockchain: ${
+      `failed to verify proof on blockchain: ${
         error.message || "Unknown error"
       }`
     );

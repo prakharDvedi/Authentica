@@ -22,9 +22,7 @@ export async function generateImage(
   prompt: string
 ): Promise<ImageGenerationResult> {
   if (!process.env.STABILITY_API_KEY) {
-    throw new Error(
-      "No image generation API key found. Please set STABILITY_API_KEY in your .env file."
-    );
+    throw new Error("no key found");
   }
 
   return await generateImageStability(prompt);
@@ -64,7 +62,7 @@ export async function generateImageStability(
     const data = response.data;
 
     if (!data.artifacts || !data.artifacts[0] || !data.artifacts[0].base64) {
-      throw new Error("No image returned from Stability AI");
+      throw new Error("no image returned");
     }
 
     const artifact = data.artifacts[0];

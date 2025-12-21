@@ -1,23 +1,9 @@
 "use client";
 import Link from "next/link";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-cream-50 to-green-50">
-      <nav className="border-b border-green-200/50 bg-cream-100/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-green-700 bg-clip-text text-transparent">
-                Authentica
-              </h1>
-            </div>
-            <ConnectButton />
-          </div>
-        </div>
-      </nav>
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center mb-16">
           <h1 className="text-5xl font-bold text-stone-800 mb-4">
@@ -56,9 +42,7 @@ export default function Home() {
               <h4 className="font-semibold mb-2 text-stone-800">
                 Connect Wallet
               </h4>
-              <p className="text-sm text-stone-700">
-                Link your Web3 wallet to establish your identity
-              </p>
+              <p className="text-sm text-stone-700">Link your Web3 wallet</p>
             </div>
 
             <div className="text-center">
@@ -66,9 +50,7 @@ export default function Home() {
                 <span className="text-2xl font-bold text-green-700">2</span>
               </div>
               <h4 className="font-semibold mb-2 text-stone-800">Create Art</h4>
-              <p className="text-sm text-stone-700">
-                Enter your prompt and generate AI artwork
-              </p>
+              <p className="text-sm text-stone-700">Enter your prompt</p>
             </div>
 
             <div className="text-center">
