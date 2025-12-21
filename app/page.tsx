@@ -1,7 +1,6 @@
-'use client';
-
-import Link from 'next/link';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+"use client";
+import Link from "next/link";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 export default function Home() {
   return (
@@ -54,7 +53,9 @@ export default function Home() {
               <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-green-300">
                 <span className="text-2xl font-bold text-green-700">1</span>
               </div>
-              <h4 className="font-semibold mb-2 text-stone-800">Connect Wallet</h4>
+              <h4 className="font-semibold mb-2 text-stone-800">
+                Connect Wallet
+              </h4>
               <p className="text-sm text-stone-700">
                 Link your Web3 wallet to establish your identity
               </p>
@@ -74,7 +75,9 @@ export default function Home() {
               <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-green-300">
                 <span className="text-2xl font-bold text-green-700">3</span>
               </div>
-              <h4 className="font-semibold mb-2 text-stone-800">Generate Proof</h4>
+              <h4 className="font-semibold mb-2 text-stone-800">
+                Generate Proof
+              </h4>
               <p className="text-sm text-stone-700">
                 System creates cryptographic hash and stores on blockchain
               </p>
@@ -84,20 +87,17 @@ export default function Home() {
               <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-green-300">
                 <span className="text-2xl font-bold text-green-700">4</span>
               </div>
-              <h4 className="font-semibold mb-2 text-stone-800">Get Certificate</h4>
+              <h4 className="font-semibold mb-2 text-stone-800">
+                Get Certificate
+              </h4>
               <p className="text-sm text-stone-700">
-                Receive verifiable certificate of your artwork&apos;s authenticity
+                Receive verifiable certificate of your artwork&apos;s
+                authenticity
               </p>
             </div>
           </div>
         </div>
       </main>
-
-      <footer className="border-t border-green-200/50 mt-16 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-stone-600">
-          <p>© 2024 Authentica. Built for Web3 Hackathon.</p>
-        </div>
-      </footer>
     </div>
   );
 }

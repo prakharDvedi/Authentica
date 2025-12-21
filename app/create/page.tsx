@@ -3,18 +3,23 @@
  * Main page for generating AI artwork and creating proofs
  */
 
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useAccount, useWalletClient, useChainId, useSwitchNetwork } from 'wagmi';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { registerProofOnChain } from '@/lib/blockchain';
-import { BrowserProvider } from 'ethers';
-import Link from 'next/link';
-import { QRCodeSVG } from 'qrcode.react';
-import CameraCapture from '@/components/CameraCapture';
-import TransparencyCard from '@/components/TransparencyCard';
-import { generatePDFCertificate } from '@/lib/certificate';
+import { useState, useEffect } from "react";
+import {
+  useAccount,
+  useWalletClient,
+  useChainId,
+  useSwitchNetwork,
+} from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { registerProofOnChain } from "@/lib/blockchain";
+import { BrowserProvider } from "ethers";
+import Link from "next/link";
+import { QRCodeSVG } from "qrcode.react";
+import CameraCapture from "@/components/CameraCapture";
+import TransparencyCard from "@/components/TransparencyCard";
+import { generatePDFCertificate } from "@/lib/certificate";
 
 export default function CreatePage() {
   const { address, isConnected } = useAccount();
@@ -26,9 +31,9 @@ export default function CreatePage() {
   useEffect(() => {
     setMounted(true);
   }, []);
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
-  const [contentType, setContentType] = useState<'image' | 'music'>('image');
+  const [contentType, setContentType] = useState<"image" | "music">("image");
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
   const [proof, setProof] = useState<any>(null);
@@ -41,7 +46,7 @@ export default function CreatePage() {
 
   const handleGenerate = async () => {
     if (!prompt.trim() || !isConnected || !address) {
-      alert('Please connect your wallet and enter a prompt');
+      alert("Please connect your wallet and enter a prompt");
       return;
     }
 
@@ -52,10 +57,10 @@ export default function CreatePage() {
     setCertificate(null);
 
     try {
-      const response = await fetch('/api/generate', {
-        method: 'POST',
+      const response = await fetch("/api/generate", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           prompt,
@@ -66,135 +71,182 @@ export default function CreatePage() {
         }),
       });
 
-      const responseContentType = response.headers.get('content-type');
-      if (!responseContentType || !responseContentType.includes('application/json')) {
+      const responseContentType = response.headers.get("content-type");
+      if (
+        !responseContentType ||
+        !responseContentType.includes("application/json")
+      ) {
         const text = await response.text();
-        throw new Error(`API returned non-JSON response: ${text.substring(0, 200)}`);
+        throw new Error(
+          `API returned non-JSON response: ${text.substring(0, 200)}`
+        );
       }
 
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'Generation failed');
+        throw new Error(data.error || "Generation failed");
       }
 
       // Set generated content based on type
-      if (contentType === 'image') {
+      if (contentType === "image") {
         setGeneratedImage(`data:image/png;base64,${data.proof.outputBuffer}`);
-      } else if (contentType === 'music') {
+      } else if (contentType === "music") {
         // BeatOven returns MP3, dummy audio returns WAV
-        const audioType = data.proof.transparency?.provider === 'beatoven' ? 'audio/mpeg' : 'audio/wav';
-        setGeneratedAudio(`data:${audioType};base64,${data.proof.outputBuffer}`);
+        const audioType =
+          data.proof.transparency?.provider === "beatoven"
+            ? "audio/mpeg"
+            : "audio/wav";
+        setGeneratedAudio(
+          `data:${audioType};base64,${data.proof.outputBuffer}`
+        );
       }
-      
+
       setProof(data.proof);
       setTransparencyData(data.proof.transparency || null);
 
       let txHash: string | null = null;
-      
+
       // Small delay to ensure wallet client is ready
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       // Debug logging - check environment variable
       const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
-      console.log('Transaction Debug:', {
+      console.log("Transaction Debug:", {
         walletClient: !!walletClient,
-        walletClientType: walletClient ? typeof walletClient : 'null',
+        walletClientType: walletClient ? typeof walletClient : "null",
         isConnected,
         address,
         chainId,
-        contractAddress: contractAddress || 'NOT SET',
+        contractAddress: contractAddress || "NOT SET",
         contractAddressLength: contractAddress?.length || 0,
-        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL ? 'Set' : 'NOT SET',
+        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL ? "Set" : "NOT SET",
       });
-      
-      if (!contractAddress || contractAddress === '') {
-        alert('Contract address not configured. Please set NEXT_PUBLIC_CONTRACT_ADDRESS in .env.local and restart the server.');
-        throw new Error('Contract address not set');
+
+      if (!contractAddress || contractAddress === "") {
+        alert(
+          "Contract address not configured. Please set NEXT_PUBLIC_CONTRACT_ADDRESS in .env.local and restart the server."
+        );
+        throw new Error("Contract address not set");
       }
-      
+
       if (!isConnected || !address) {
-        console.error('Wallet not connected');
-        alert('Wallet not connected. Please connect your wallet using the "Connect Wallet" button and try again.');
+        console.error("Wallet not connected");
+        alert(
+          'Wallet not connected. Please connect your wallet using the "Connect Wallet" button and try again.'
+        );
       } else if (!walletClient) {
-        console.error('Wallet client not available');
-        console.error('This might be a timing issue. Try waiting a moment and generating again.');
-        alert('Wallet client not available. Please:\n1. Make sure your wallet is connected\n2. Wait a moment\n3. Try generating again');
+        console.error("Wallet client not available");
+        console.error(
+          "This might be a timing issue. Try waiting a moment and generating again."
+        );
+        alert(
+          "Wallet client not available. Please:\n1. Make sure your wallet is connected\n2. Wait a moment\n3. Try generating again"
+        );
       } else {
         try {
           if (chainId !== 11155111) {
             if (switchNetwork) {
               try {
-                console.log('Attempting to switch to Sepolia network...');
+                console.log("Attempting to switch to Sepolia network...");
                 switchNetwork(11155111);
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                await new Promise((resolve) => setTimeout(resolve, 2000));
                 if (chainId !== 11155111) {
-                  throw new Error('Network switch failed. Please switch to Sepolia testnet manually in MetaMask.');
+                  throw new Error(
+                    "Network switch failed. Please switch to Sepolia testnet manually in MetaMask."
+                  );
                 }
               } catch (switchError: any) {
-                throw new Error(`Failed to switch to Sepolia network. Please switch manually in MetaMask:\n\n1. Open MetaMask\n2. Click network dropdown\n3. Select "Sepolia"\n4. Try again`);
+                throw new Error(
+                  `Failed to switch to Sepolia network. Please switch manually in MetaMask:\n\n1. Open MetaMask\n2. Click network dropdown\n3. Select "Sepolia"\n4. Try again`
+                );
               }
             } else {
-              throw new Error(`Wrong network! Please switch to Sepolia testnet (Chain ID: 11155111). Current network Chain ID: ${chainId}. Open MetaMask and switch to Sepolia testnet.`);
+              throw new Error(
+                `Wrong network! Please switch to Sepolia testnet (Chain ID: 11155111). Current network Chain ID: ${chainId}. Open MetaMask and switch to Sepolia testnet.`
+              );
             }
           }
-          
+
           const provider = new BrowserProvider(walletClient as any);
           const signer = await provider.getSigner(address);
-          
+
           const network = await provider.getNetwork();
-          console.log('Connected to network:', network.name, 'Chain ID:', network.chainId.toString());
-          
+          console.log(
+            "Connected to network:",
+            network.name,
+            "Chain ID:",
+            network.chainId.toString()
+          );
+
           if (network.chainId !== 11155111n) {
-            throw new Error(`Network mismatch! Wallet is on Chain ID ${network.chainId}, but contract is on Sepolia (11155111). Please switch to Sepolia testnet in MetaMask and try again.`);
+            throw new Error(
+              `Network mismatch! Wallet is on Chain ID ${network.chainId}, but contract is on Sepolia (11155111). Please switch to Sepolia testnet in MetaMask and try again.`
+            );
           }
-          
-          console.log('Starting blockchain registration...');
-          console.log('Contract address:', process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || 'NOT SET');
-          console.log('RPC URL:', process.env.NEXT_PUBLIC_RPC_URL ? 'Set' : 'NOT SET');
-          
+
+          console.log("Starting blockchain registration...");
+          console.log(
+            "Contract address:",
+            process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "NOT SET"
+          );
+          console.log(
+            "RPC URL:",
+            process.env.NEXT_PUBLIC_RPC_URL ? "Set" : "NOT SET"
+          );
+
           txHash = await registerProofOnChain(signer, {
             promptHash: data.proof.promptHash,
             outputHash: data.proof.outputHash,
             combinedHash: data.proof.combinedHash,
             ipfsLink: data.proof.outputCid,
           });
-          
-          console.log('Transaction successful! Hash:', txHash);
+
+          console.log("Transaction successful! Hash:", txHash);
         } catch (error: any) {
-          console.error('Blockchain registration error:', error);
-          console.error('Error details:', {
+          console.error("Blockchain registration error:", error);
+          console.error("Error details:", {
             message: error.message,
             code: error.code,
             data: error.data,
             chainId,
-            contractAddress: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || 'not set',
-            rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'not set',
+            contractAddress:
+              process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "not set",
+            rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || "not set",
           });
-          
+
           // Show user-friendly error message
-          let errorMessage = 'Failed to register proof on blockchain. ';
-          
-          if (error.message?.includes('Contract address not set')) {
-            errorMessage += 'Please set NEXT_PUBLIC_CONTRACT_ADDRESS in your .env.local file.';
-          } else if (error.message?.includes('network') || error.message?.includes('Chain ID')) {
-            errorMessage = error.message || 'Please switch to Sepolia testnet in MetaMask.';
-          } else if (error.message?.includes('No contract found')) {
-            errorMessage += 'Contract not deployed. Please deploy the contract first.';
-          } else if (error.code === 'ACTION_REJECTED' || error.message?.includes('rejected')) {
-            errorMessage = 'Transaction was rejected. Please try again.';
+          let errorMessage = "Failed to register proof on blockchain. ";
+
+          if (error.message?.includes("Contract address not set")) {
+            errorMessage +=
+              "Please set NEXT_PUBLIC_CONTRACT_ADDRESS in your .env.local file.";
+          } else if (
+            error.message?.includes("network") ||
+            error.message?.includes("Chain ID")
+          ) {
+            errorMessage =
+              error.message || "Please switch to Sepolia testnet in MetaMask.";
+          } else if (error.message?.includes("No contract found")) {
+            errorMessage +=
+              "Contract not deployed. Please deploy the contract first.";
+          } else if (
+            error.code === "ACTION_REJECTED" ||
+            error.message?.includes("rejected")
+          ) {
+            errorMessage = "Transaction was rejected. Please try again.";
           } else {
-            errorMessage += error.message || 'Unknown error occurred.';
+            errorMessage += error.message || "Unknown error occurred.";
           }
-          
+
           alert(errorMessage);
-          console.warn('Blockchain registration failed:', error.message);
+          console.warn("Blockchain registration failed:", error.message);
         }
       }
-      
+
       // Log final status
       if (!txHash) {
-        console.warn('Transaction hash is null - transaction was not sent');
+        console.warn("Transaction hash is null - transaction was not sent");
       }
 
       const cert = {
@@ -206,7 +258,7 @@ export default function CreatePage() {
         timestamp: new Date(data.proof.timestamp).toISOString(),
         ipfsLink: data.proof.outputCid,
         metadataCid: data.proof.metadataCid,
-        txHash: txHash || 'not-registered',
+        txHash: txHash || "not-registered",
         verificationUrl: `${window.location.origin}/verify?hash=${data.proof.combinedHash}`,
         faceHash: data.proof.faceHash || null,
         faceVerified: !!data.proof.faceHash,
@@ -216,12 +268,12 @@ export default function CreatePage() {
       };
 
       setCertificate(cert);
-      
+
       // Reset decrypted content when new certificate is created
       setDecryptedContent(null);
     } catch (error: any) {
-      console.error('Generation error:', error);
-      alert('Failed to generate: ' + error.message);
+      console.error("Generation error:", error);
+      alert("Failed to generate: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -272,16 +324,16 @@ export default function CreatePage() {
                     <button
                       type="button"
                       onClick={() => {
-                        setContentType('image');
+                        setContentType("image");
                         setGeneratedImage(null);
                         setGeneratedAudio(null);
                         setProof(null);
                         setCertificate(null);
                       }}
                       className={`px-6 py-3 rounded-lg font-medium transition-all ${
-                        contentType === 'image'
-                          ? 'bg-green-600 text-white shadow-md scale-105'
-                          : 'bg-white/80 text-stone-700 hover:bg-green-50 border border-green-300'
+                        contentType === "image"
+                          ? "bg-green-600 text-white shadow-md scale-105"
+                          : "bg-white/80 text-stone-700 hover:bg-green-50 border border-green-300"
                       }`}
                     >
                       🖼️ Image
@@ -289,16 +341,16 @@ export default function CreatePage() {
                     <button
                       type="button"
                       onClick={() => {
-                        setContentType('music');
+                        setContentType("music");
                         setGeneratedImage(null);
                         setGeneratedAudio(null);
                         setProof(null);
                         setCertificate(null);
                       }}
                       className={`px-6 py-3 rounded-lg font-medium transition-all ${
-                        contentType === 'music'
-                          ? 'bg-green-600 text-white shadow-md scale-105'
-                          : 'bg-white/80 text-stone-700 hover:bg-green-50 border border-green-300'
+                        contentType === "music"
+                          ? "bg-green-600 text-white shadow-md scale-105"
+                          : "bg-white/80 text-stone-700 hover:bg-green-50 border border-green-300"
                       }`}
                     >
                       Music
@@ -313,14 +365,14 @@ export default function CreatePage() {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder={
-                    contentType === 'image'
-                      ? 'A futuristic cityscape at sunset with flying cars...'
-                      : 'Upbeat electronic dance music with synthesizers and drums, 120 BPM...'
+                    contentType === "image"
+                      ? "A futuristic cityscape at sunset with flying cars..."
+                      : "Upbeat electronic dance music with synthesizers and drums, 120 BPM..."
                   }
                   className="w-full px-4 py-3 bg-white/80 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-stone-800 placeholder-stone-500"
                   rows={4}
                 />
-                
+
                 <div className="mt-4">
                   <CameraCapture
                     onCapture={(hash, timestamp) => {
@@ -328,7 +380,7 @@ export default function CreatePage() {
                       setFaceTimestamp(timestamp);
                     }}
                     onError={(error) => {
-                      console.error('Camera error:', error);
+                      console.error("Camera error:", error);
                     }}
                     disabled={loading}
                   />
@@ -339,11 +391,13 @@ export default function CreatePage() {
                   disabled={loading || !prompt.trim()}
                   className="mt-4 w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:bg-stone-300 disabled:text-stone-500 disabled:cursor-not-allowed transition-colors"
                 >
-                  {loading 
-                    ? (contentType === 'image' ? 'Generating Image...' : 'Generating Music...')
-                    : contentType === 'image' 
-                      ? 'Generate Image & Create Proof'
-                      : 'Generate Music & Create Proof'}
+                  {loading
+                    ? contentType === "image"
+                      ? "Generating Image..."
+                      : "Generating Music..."
+                    : contentType === "image"
+                    ? "Generate Image & Create Proof"
+                    : "Generate Music & Create Proof"}
                 </button>
               </div>
 
@@ -351,18 +405,20 @@ export default function CreatePage() {
                 <div className="space-y-6 mb-6">
                   <div className="bg-cream-100/80 rounded-xl shadow-lg p-6 border border-green-200/50 backdrop-blur-sm">
                     <h2 className="text-2xl font-bold mb-4 text-stone-800">
-                      {contentType === 'image' ? 'Generated Artwork' : 'Generated Music'}
+                      {contentType === "image"
+                        ? "Generated Artwork"
+                        : "Generated Music"}
                     </h2>
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>
-                        {contentType === 'image' && generatedImage && (
+                        {contentType === "image" && generatedImage && (
                           <img
                             src={generatedImage}
                             alt="Generated artwork"
                             className="w-full rounded-lg mb-4"
                           />
                         )}
-                        {contentType === 'music' && generatedAudio && (
+                        {contentType === "music" && generatedAudio && (
                           <div className="mb-4">
                             <audio
                               controls
@@ -376,17 +432,21 @@ export default function CreatePage() {
                         {proof && (
                           <div className="bg-white/80 p-4 rounded-lg border border-green-200/50">
                             <p className="text-sm text-stone-700">
-                              <strong className="text-stone-800">Combined Hash:</strong>{' '}
-                              <code className="text-xs text-green-700 font-mono">{proof.combinedHash}</code>
+                              <strong className="text-stone-800">
+                                Combined Hash:
+                              </strong>{" "}
+                              <code className="text-xs text-green-700 font-mono">
+                                {proof.combinedHash}
+                              </code>
                             </p>
                           </div>
                         )}
                       </div>
-                      
+
                       {transparencyData && (
                         <div>
-                          <TransparencyCard 
-                            transparency={transparencyData} 
+                          <TransparencyCard
+                            transparency={transparencyData}
                             prompt={prompt}
                           />
                         </div>
@@ -405,7 +465,9 @@ export default function CreatePage() {
                     {certificate.faceVerified && (
                       <div className="flex items-center gap-2 bg-green-100 px-3 py-1 rounded-full border border-green-300">
                         <span className="text-lg"></span>
-                        <span className="text-sm font-semibold text-green-800">Face Verified</span>
+                        <span className="text-sm font-semibold text-green-800">
+                          Face Verified
+                        </span>
                       </div>
                     )}
                   </div>
@@ -461,7 +523,10 @@ export default function CreatePage() {
                         IPFS Content ID (CID)
                       </h3>
                       {/* STRICT ACCESS: Only show CID to creator, and only as copy button (not clickable link) */}
-                      {address && isConnected && address.toLowerCase() === certificate.creator?.toLowerCase() ? (
+                      {address &&
+                      isConnected &&
+                      address.toLowerCase() ===
+                        certificate.creator?.toLowerCase() ? (
                         <>
                           <div className="flex items-center gap-2 mb-2">
                             <p className="text-xs font-mono bg-white/80 p-2 rounded break-all text-stone-700 border border-green-200/50 flex-1">
@@ -469,8 +534,12 @@ export default function CreatePage() {
                             </p>
                             <button
                               onClick={() => {
-                                navigator.clipboard.writeText(certificate.ipfsLink);
-                                alert('CID copied to clipboard! Use this in your Pinata dashboard.');
+                                navigator.clipboard.writeText(
+                                  certificate.ipfsLink
+                                );
+                                alert(
+                                  "CID copied to clipboard! Use this in your Pinata dashboard."
+                                );
                               }}
                               className="px-3 py-2 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors"
                               title="Copy CID to clipboard"
@@ -479,28 +548,33 @@ export default function CreatePage() {
                             </button>
                           </div>
                           <p className="text-xs text-green-600 mt-1 font-semibold">
-                            Encrypted - Only you (creator) can decrypt this content
+                            Encrypted - Only you (creator) can decrypt this
+                            content
                           </p>
                           <p className="text-xs text-stone-600 mt-1">
-                            <strong>Private CID:</strong> Do NOT share this CID. Content is encrypted and only accessible through this app with your wallet.
+                            <strong>Private CID:</strong> Do NOT share this CID.
+                            Content is encrypted and only accessible through
+                            this app with your wallet.
                           </p>
                           <p className="text-xs text-amber-600 mt-2 font-medium">
-                            To view content: Click "Decrypt & View" below. Decryption happens securely on our server using your wallet.
+                            To view content: Click "Decrypt & View" below.
+                            Decryption happens securely on our server using your
+                            wallet.
                           </p>
                           {!decryptedContent && (
                             <button
                               onClick={async () => {
                                 if (!address || !certificate.ipfsLink) {
-                                  alert('Wallet not connected or CID missing');
+                                  alert("Wallet not connected or CID missing");
                                   return;
                                 }
-                                
+
                                 setDecrypting(true);
                                 try {
-                                  const response = await fetch('/api/decrypt', {
-                                    method: 'POST',
+                                  const response = await fetch("/api/decrypt", {
+                                    method: "POST",
                                     headers: {
-                                      'Content-Type': 'application/json',
+                                      "Content-Type": "application/json",
                                     },
                                     body: JSON.stringify({
                                       ipfsCid: certificate.ipfsLink,
@@ -511,14 +585,21 @@ export default function CreatePage() {
                                   const data = await response.json();
 
                                   if (!data.success) {
-                                    throw new Error(data.error || 'Decryption failed');
+                                    throw new Error(
+                                      data.error || "Decryption failed"
+                                    );
                                   }
 
                                   // Set decrypted content as data URL
-                                  const contentType = certificate.type === 'image' ? 'image/png' : 'audio/mpeg';
-                                  setDecryptedContent(`data:${contentType};base64,${data.decryptedContent}`);
+                                  const contentType =
+                                    certificate.type === "image"
+                                      ? "image/png"
+                                      : "audio/mpeg";
+                                  setDecryptedContent(
+                                    `data:${contentType};base64,${data.decryptedContent}`
+                                  );
                                 } catch (error: any) {
-                                  console.error('Decryption error:', error);
+                                  console.error("Decryption error:", error);
                                   alert(`Failed to decrypt: ${error.message}`);
                                 } finally {
                                   setDecrypting(false);
@@ -527,7 +608,9 @@ export default function CreatePage() {
                               disabled={decrypting || !isConnected}
                               className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:bg-stone-300 disabled:text-stone-500 disabled:cursor-not-allowed transition-colors"
                             >
-                              {decrypting ? 'Decrypting...' : 'Decrypt & View Content Securely'}
+                              {decrypting
+                                ? "Decrypting..."
+                                : "Decrypt & View Content Securely"}
                             </button>
                           )}
                           {decryptedContent && (
@@ -535,7 +618,7 @@ export default function CreatePage() {
                               <p className="text-xs text-green-600 mb-2 font-semibold">
                                 Content decrypted successfully
                               </p>
-                              {certificate.type === 'image' ? (
+                              {certificate.type === "image" ? (
                                 <img
                                   src={decryptedContent}
                                   alt="Decrypted content"
@@ -547,7 +630,8 @@ export default function CreatePage() {
                                   src={decryptedContent}
                                   className="w-full rounded-lg"
                                 >
-                                  Your browser does not support the audio element.
+                                  Your browser does not support the audio
+                                  element.
                                 </audio>
                               )}
                             </div>
@@ -559,15 +643,17 @@ export default function CreatePage() {
                             IPFS CID Hidden - Wallet Access Required
                           </p>
                           <p className="text-xs text-stone-600 mt-1">
-                            {!isConnected 
-                              ? 'Connect your wallet to view the IPFS CID. Only the creator can access encrypted content.'
-                              : address?.toLowerCase() !== certificate.creator?.toLowerCase()
-                              ? 'This content was created by a different wallet. IPFS CID is hidden for security.'
-                              : 'IPFS CID is encrypted and only accessible by the creator.'}
+                            {!isConnected
+                              ? "Connect your wallet to view the IPFS CID. Only the creator can access encrypted content."
+                              : address?.toLowerCase() !==
+                                certificate.creator?.toLowerCase()
+                              ? "This content was created by a different wallet. IPFS CID is hidden for security."
+                              : "IPFS CID is encrypted and only accessible by the creator."}
                           </p>
                           {!isConnected && (
                             <p className="text-xs text-amber-600 mt-2 font-medium">
-                              Connect the creator's wallet to decrypt and view content
+                              Connect the creator's wallet to decrypt and view
+                              content
                             </p>
                           )}
                         </>
@@ -605,7 +691,10 @@ export default function CreatePage() {
 
                   <div className="flex justify-center">
                     <div className="bg-white p-4 rounded-lg">
-                      <QRCodeSVG value={certificate.verificationUrl} size={200} />
+                      <QRCodeSVG
+                        value={certificate.verificationUrl}
+                        size={200}
+                      />
                     </div>
                   </div>
 

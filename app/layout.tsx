@@ -1,13 +1,13 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import './globals.css';
-import { Providers } from './providers';
-
-const inter = Inter({ subsets: ['latin'] });
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { Providers } from "./providers";
+import Footer from "./api/components/footer";
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Authentica - Verifiable AI Art Framework',
-  description: 'Blockchain-based proof of authorship for AI-generated content',
+  title: "Authentica - Verifiable AI Art Framework",
+  description: "Blockchain-based proof of authorship for AI-generated content",
 };
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <Providers>{children}</Providers>
       </body>
+      <Footer />
     </html>
   );
 }
-
