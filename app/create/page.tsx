@@ -312,7 +312,7 @@ export default function CreatePage() {
                     >
                       🖼️ Image
                     </button>
-                    <button
+                    {/* <button
                       type="button"
                       onClick={() => {
                         setContentType("music");
@@ -328,7 +328,7 @@ export default function CreatePage() {
                       }`}
                     >
                       Music
-                    </button>
+                    </button> */}
                   </div>
                 </div>
 
